@@ -26,7 +26,6 @@
 *.lib
 
 # Executables
-*.exe
 *.out
 *.app
 *.ipa
@@ -41,12 +40,13 @@
 *.VC.db
 *.VC.opendb
 
+Config/*
+
 # Precompiled Assets
 SourceArt/**/*.png
 SourceArt/**/*.tga
 
 # Binary Files
-Binaries/*
 Plugins/*/Binaries/*
 
 # Builds
