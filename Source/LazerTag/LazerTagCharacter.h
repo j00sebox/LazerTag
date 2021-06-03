@@ -90,7 +90,7 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Gameplay)
 	uint8 bUsingMotionControllers : 1;
 
-	enum class MovementStates
+	enum class EMovementStates
 	{
 		WALKING = 0,
 		CROUCHING,
@@ -98,13 +98,13 @@ public:
 		SLIDING,
 	};
 	
-	enum class WallSide
+	enum class EWallSide
 	{
 		RIGHT = 0,
 		LEFT,
 	};
 
-	enum class StopWallRunningReason
+	enum class EStopWallRunningReason
 	{
 		FALLOFF = 0,
 		JUMP,
@@ -118,6 +118,10 @@ public:
 
 	void EndSlide();
 
+	void BeginWallRun();
+
+	void EndWallRun(EStopWallRunningReason reason);
+
 	FScriptDelegate OnCapsuleHit;
 
 	// delegate that is binded with CrouchTimelineUpdate
@@ -129,10 +133,11 @@ public:
 	// delegate that is binded with SlideTimelineUpdate
 	FOnTimelineFloat SlideInterp;
 
+	FOnTimelineFloat WallRunInterp;
+
 
 	UFUNCTION()
-	void CapsuleHit();
-
+	void CapsuleHit(const FHitResult& Hit);
 
 	UFUNCTION()
 	void CrouchTimelineUpdate(float value);
@@ -143,39 +148,47 @@ public:
 	UFUNCTION()
 	void SlideTimelineUpdate(float value);
 
+	UFUNCTION()
+	void WallRunUpdate(float value);
+
 
 private:
 
-	MovementStates CurrentMoveState = MovementStates::WALKING;
+	EMovementStates CurrentMoveState = EMovementStates::WALKING;
 	bool b_crouchKeyDown;
 	bool b_sprintKeyDown;
 	
 	/* General Movement */
+	float f_forwardMovement;
+	float f_sideMovement;
 	float f_capsuleHeightScale = .5f;
 	float f_cameraZOffset = 64.f;
 	float f_standingCapsuleHalfHeight = 96.f;
-	float f_camXRotationOff = -10.f;
+	float f_camXRotationOffLeft = 10.f;
+	float f_camXRotationOffRight = -10.f;
+	float f_camXRotation;
 	const float f_walkSpeed = 600.f;
 	const float f_sprintSpeed = 1200.f;
 	const float f_crouchSpeed = 300.f;
 
 	/* Wall Running */
 	FVector m_wallRunDir;
-	bool b_isWallRunning;
+	bool b_isWallRunning = false;
 	const int i_maxJumps = 2;
 	int i_jumpsLeft = i_maxJumps;
-	WallSide CurrentSide;
+	EWallSide CurrentSide;
 
 	/* Timelines */
 	UTimelineComponent* m_crouchTimeline;
 	UTimelineComponent* m_slideTimeline;
 	UTimelineComponent* m_camTiltTimeline;
+	UTimelineComponent* m_wallRunTimeline;
 
 	UPROPERTY(EditAnywhere, Category = "Timeline")
 	UCurveFloat* fCrouchCurve;
 
 	UPROPERTY(EditAnywhere, Category = "Timeline")
-	UCurveFloat* fSlideCurve;
+	UCurveFloat* fTickCurve;
 
 	UPROPERTY()
 	FVector m_camStartVec;
@@ -223,7 +236,7 @@ protected:
 	void Sprint();
 	void StopSprint();
 
-	void SetMovementState(MovementStates newState);
+	void SetMovementState(EMovementStates newState);
 
 	void SetMaxWalkSpeed();
 
@@ -239,9 +252,9 @@ protected:
 
 	void ResetJump();
 
-	bool WallRunnable();
+	bool WallRunnable(FVector surfaceNormal);
 
-	FVector FindWallRunDir();
+	FVector FindWallRunDir(FVector wallNormal);
 
 	FVector FindLaunchVelocity();
 

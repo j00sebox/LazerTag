@@ -26,10 +26,12 @@ ALazerTagCharacter::ALazerTagCharacter()
 	m_crouchTimeline = CreateDefaultSubobject<UTimelineComponent>(TEXT("CrouchTimeline"));
 	m_camTiltTimeline = CreateDefaultSubobject<UTimelineComponent>(TEXT("CamTiltTimeline"));
 	m_slideTimeline = CreateDefaultSubobject<UTimelineComponent>(TEXT("SlideTimeline"));
+	m_wallRunTimeline = CreateDefaultSubobject<UTimelineComponent>(TEXT("WallRunTimeline"));
 
 	CrouchInterp.BindUFunction(this, FName("CrouchTimelineUpdate"));
 	CamInterp.BindUFunction(this, FName("CamTiltTimelineUpdate"));
 	SlideInterp.BindUFunction(this, FName("SlideTimelineUpdate"));
+	WallRunInterp.BindUFunction(this, FName("WallRunUpdate"));
 
 	// Set size for collision capsule
 	GetCapsuleComponent()->InitCapsuleSize(55.f, f_standingCapsuleHalfHeight);
@@ -136,13 +138,18 @@ void ALazerTagCharacter::BeginPlay()
 		m_camTiltTimeline->SetIgnoreTimeDilation(true);
 	}
 
-	if (fSlideCurve)
+	if (fTickCurve)
 	{
 		/* set up slide timeline */
-		m_slideTimeline->AddInterpFloat(fSlideCurve, SlideInterp, FName("SlideTick"));
+		m_slideTimeline->AddInterpFloat(fTickCurve, SlideInterp, FName("SlideTick"));
 
 		// general settings for timeline
 		m_slideTimeline->SetIgnoreTimeDilation(true);
+
+		m_wallRunTimeline->AddInterpFloat(fTickCurve, WallRunInterp, FName("WallRunTick"));
+
+		m_wallRunTimeline->SetLooping(true);
+		m_wallRunTimeline->SetIgnoreTimeDilation(true);
 	}
 
 	//Attach gun mesh component to Skeleton, doing it here because the skeleton is not yet created in the constructor
@@ -177,9 +184,53 @@ void ALazerTagCharacter::CamTiltTimelineUpdate(float value)
 
 	FRotator currentCamRot = controller->GetControlRotation();
 
-	currentCamRot = FRotator(currentCamRot.Pitch, currentCamRot.Yaw, FMath::Lerp(0.f, f_camXRotationOff, value));
+	currentCamRot = FRotator(currentCamRot.Pitch, currentCamRot.Yaw, FMath::Lerp(0.f, f_camXRotation, value));
 
 	controller->SetControlRotation(currentCamRot);
+}
+
+void ALazerTagCharacter::WallRunUpdate(float value)
+{
+
+	FHitResult hit;
+
+	if (CanWallRun())
+	{
+		FVector start = GetActorLocation();
+
+		FVector intoWall;
+
+		if (CurrentSide == EWallSide::LEFT)
+			intoWall = FVector::CrossProduct(m_wallRunDir, FVector::UpVector);
+		else
+			intoWall = FVector::CrossProduct(m_wallRunDir, -FVector::UpVector);
+
+		intoWall *= 100;
+
+		FVector end = start + intoWall;
+
+		if(!GetWorld()->LineTraceSingleByChannel(hit, start, end, ECC_WorldStatic, _standCollisionParams))
+			EndWallRun(EStopWallRunningReason::FALLOFF);
+		else
+		{
+			EWallSide prevWallSide = CurrentSide;
+
+			m_wallRunDir = FindWallRunDir(hit.ImpactNormal);
+
+			if (prevWallSide == CurrentSide)
+			{
+				m_characterMovement->Velocity = FVector(m_wallRunDir.X, m_wallRunDir.Y, 0) * m_characterMovement->GetModifiedMaxSpeed();
+			}
+			else
+			{
+				EndWallRun(EStopWallRunningReason::FALLOFF);
+			}
+		}
+	}
+	else
+	{
+		EndWallRun(EStopWallRunningReason::FALLOFF);
+	}
 }
 
 void ALazerTagCharacter::SlideTimelineUpdate(float value)
@@ -199,7 +250,7 @@ void ALazerTagCharacter::SlideTimelineUpdate(float value)
 	else if (vel.Size() < f_crouchSpeed)
 	{
 		m_characterMovement->Velocity = FVector(0, 0, 0);
-		SetMovementState(MovementStates::WALKING);
+		SetMovementState(EMovementStates::WALKING);
 	}
 }
 
@@ -230,29 +281,73 @@ bool ALazerTagCharacter::UseJump()
 		
 }
 
-void ALazerTagCharacter::CapsuleHit()
+void ALazerTagCharacter::CapsuleHit(const FHitResult& Hit)
 {
-	return;
-}
+	if (!OnWall())
+	{
+		if (m_characterMovement->IsFalling() && WallRunnable(Hit.ImpactNormal))
+		{
+ 			m_wallRunDir = FindWallRunDir(-Hit.ImpactNormal);
 
-//void ALazerTagCharacter::OnLanded()
-//{
-//	ResetJump();
-//}
+   			if (CanWallRun())
+			{
+				BeginWallRun();
+			}
+		}
+	}
+}
 
 void ALazerTagCharacter::ResetJump()
 {
 	i_jumpsLeft = i_maxJumps;
 }
 
-bool ALazerTagCharacter::WallRunnable()
+bool ALazerTagCharacter::WallRunnable(FVector surfaceNormal)
 {
+
+	if(surfaceNormal.Z < 0)
+		return false;
+
+	surfaceNormal.Normalize();
+
+   	FVector newVec = FVector(surfaceNormal.X, surfaceNormal.Y, 0);
+
+	newVec.Normalize();
+
+    float res = FVector::DotProduct(surfaceNormal, newVec);
+
+	float angle = FMath::RadiansToDegrees( FMath::Acos(res) );
+
+ 	if (angle < m_characterMovement->GetWalkableFloorAngle())
+	{
+		return true;
+	}
+
 	return false;
 }
 
-FVector ALazerTagCharacter::FindWallRunDir()
+FVector ALazerTagCharacter::FindWallRunDir(FVector wallNormal)
 {
-	return FVector();
+
+	wallNormal.Normalize();
+	FVector2D normal = FVector2D(wallNormal);
+	FVector2D right = FVector2D(GetActorRightVector());
+
+	float res = FVector2D::DotProduct(normal, right);
+
+	if (res < 0)
+	{
+		CurrentSide = EWallSide::RIGHT;
+	}
+	else
+	{
+		CurrentSide = EWallSide::LEFT;
+	}
+
+	if(CurrentSide == EWallSide::RIGHT)
+		return FVector::CrossProduct(wallNormal, -FVector::UpVector);
+	else
+		return FVector::CrossProduct(wallNormal, FVector::UpVector);
 }
 
 FVector ALazerTagCharacter::FindLaunchVelocity()
@@ -261,7 +356,7 @@ FVector ALazerTagCharacter::FindLaunchVelocity()
 
 	if (OnWall())
 	{
-		if (CurrentSide == WallSide::LEFT)
+		if (CurrentSide == EWallSide::LEFT)
 		{
 			launchVelocity = FVector::CrossProduct(m_wallRunDir, FVector::UpVector);
 		}
@@ -284,7 +379,18 @@ FVector ALazerTagCharacter::FindLaunchVelocity()
 
 bool ALazerTagCharacter::CanWallRun()
 {
-	return false;
+  	bool correctKey = false;
+
+	if (f_sideMovement > 0.1f && CurrentSide == EWallSide::RIGHT)
+	{
+		correctKey = true;
+	}
+	else if (f_sideMovement < -0.1f && CurrentSide == EWallSide::LEFT)
+	{
+		correctKey = true;
+	}
+
+	return (f_forwardMovement > 0.1f) && correctKey;
 }
 
 FVector ALazerTagCharacter::GetHorizontalVel()
@@ -390,12 +496,14 @@ void ALazerTagCharacter::OnResetVR()
 
 void ALazerTagCharacter::MoveForward(float Value)
 {
+	f_forwardMovement = Value;
+
 	if (Value != 0.0f)
 	{
 		// add movement in that direction
 		AddMovementInput(GetActorForwardVector(), Value);
 
-		if (CurrentMoveState == MovementStates::CROUCHING && CanStand())
+		if (CurrentMoveState == EMovementStates::CROUCHING && CanStand())
 		{
 			EndCrouch();
 		}
@@ -404,12 +512,14 @@ void ALazerTagCharacter::MoveForward(float Value)
 
 void ALazerTagCharacter::MoveRight(float Value)
 {
-	if (Value != 0.0f && CurrentMoveState != MovementStates::SLIDING)
+	f_sideMovement = Value;
+
+	if (Value != 0.0f && CurrentMoveState != EMovementStates::SLIDING && !b_isWallRunning)
 	{
 		// add movement in that direction
 		AddMovementInput(GetActorRightVector(), Value);
 
-		if (CurrentMoveState == MovementStates::CROUCHING && CanStand())
+		if (CurrentMoveState == EMovementStates::CROUCHING && CanStand())
 		{
 			EndCrouch();
 		}
@@ -434,6 +544,9 @@ void ALazerTagCharacter::Jump()
 	if (UseJump())
 	{
 		LaunchCharacter(FindLaunchVelocity(), false, true);
+
+		if (OnWall())
+			EndWallRun(EStopWallRunningReason::JUMP);
 	}
 	
 
@@ -452,14 +565,14 @@ void ALazerTagCharacter::Crouch()
 
 	b_crouchKeyDown = true;
 
-	SetMovementState(MovementStates::CROUCHING);
+	SetMovementState(EMovementStates::CROUCHING);
 }
 
 void ALazerTagCharacter::Stand()
 {
 	b_crouchKeyDown = false;
 
-	SetMovementState(MovementStates::WALKING);
+	SetMovementState(EMovementStates::WALKING);
 }
 
 void ALazerTagCharacter::Sprint()
@@ -468,7 +581,7 @@ void ALazerTagCharacter::Sprint()
 	{
 		b_sprintKeyDown = true;
 
-		SetMovementState(MovementStates::SPRINTING);
+		SetMovementState(EMovementStates::SPRINTING);
 	}
 }
 
@@ -476,19 +589,19 @@ void ALazerTagCharacter::StopSprint()
 {
 	b_sprintKeyDown = false;
 
-	SetMovementState(MovementStates::WALKING);
+	SetMovementState(EMovementStates::WALKING);
 }
 
-void ALazerTagCharacter::SetMovementState(MovementStates newState)
+void ALazerTagCharacter::SetMovementState(EMovementStates newState)
 {
 	switch (CurrentMoveState)
 	{
-		case MovementStates::WALKING:
+		case EMovementStates::WALKING:
 		{
 			
-			if (newState == MovementStates::SPRINTING && CanSprint())
+			if (newState == EMovementStates::SPRINTING && CanSprint())
 				CurrentMoveState = newState;
-			else if (newState == MovementStates::CROUCHING)
+			else if (newState == EMovementStates::CROUCHING)
 			{
 				BeginCrouch();
 				CurrentMoveState = newState;
@@ -496,26 +609,26 @@ void ALazerTagCharacter::SetMovementState(MovementStates newState)
 				
 			break;
 		}
-		case MovementStates::SPRINTING:
+		case EMovementStates::SPRINTING:
 		{
-			if (newState == MovementStates::CROUCHING)
+			if (newState == EMovementStates::CROUCHING)
 			{
-				CurrentMoveState = MovementStates::SLIDING;
+				CurrentMoveState = EMovementStates::SLIDING;
 				BeginCrouch();
 				BeginSlide();
 			}
-			else if (newState == MovementStates::WALKING)
+			else if (newState == EMovementStates::WALKING)
 				CurrentMoveState = newState;
 			break;
 		}
-		case MovementStates::CROUCHING:
+		case EMovementStates::CROUCHING:
 		{
-			if (newState == MovementStates::SPRINTING && CanSprint())
+			if (newState == EMovementStates::SPRINTING && CanSprint())
 			{
 				EndCrouch();
 				CurrentMoveState = newState;
 			}
-			else if (newState == MovementStates::WALKING && CanStand())
+			else if (newState == EMovementStates::WALKING && CanStand())
 			{
 				EndCrouch();
 				CurrentMoveState = newState;
@@ -523,9 +636,9 @@ void ALazerTagCharacter::SetMovementState(MovementStates newState)
 				
 			break;
 		}
-		case MovementStates::SLIDING:
+		case EMovementStates::SLIDING:
 		{
-			if (newState == MovementStates::WALKING)
+			if (newState == EMovementStates::WALKING)
 			{
 				if (CanStand())
 				{
@@ -533,7 +646,7 @@ void ALazerTagCharacter::SetMovementState(MovementStates newState)
 					CurrentMoveState = newState;
 				}
 				else
-					CurrentMoveState = MovementStates::CROUCHING;
+					CurrentMoveState = EMovementStates::CROUCHING;
 
 				EndSlide();
 			}
@@ -560,6 +673,8 @@ void ALazerTagCharacter::BeginSlide()
 
 	m_characterMovement->BrakingDecelerationWalking = 1000.f;
 
+	f_camXRotation = f_camXRotationOffRight;
+
 	m_slideTimeline->Play();
 	m_camTiltTimeline->Play();
 }
@@ -574,20 +689,53 @@ void ALazerTagCharacter::EndSlide()
 	m_camTiltTimeline->Reverse();
 }
 
+void ALazerTagCharacter::BeginWallRun()
+{
+	m_characterMovement->AirControl = 1.f;
+
+	m_characterMovement->GravityScale = 0.f;
+
+	m_characterMovement->SetPlaneConstraintNormal(FVector(0, 0, 1.f));
+
+	b_isWallRunning = true;
+
+	if (CurrentSide == EWallSide::LEFT)
+		f_camXRotation = f_camXRotationOffLeft;
+	else
+		f_camXRotation = f_camXRotationOffRight;
+
+	m_camTiltTimeline->Play();
+	m_wallRunTimeline->Play();
+}
+
+void ALazerTagCharacter::EndWallRun(EStopWallRunningReason reason)
+{
+	m_characterMovement->AirControl = .05f;
+
+	m_characterMovement->GravityScale = 1.f;
+
+	m_characterMovement->SetPlaneConstraintNormal(FVector(0, 0, 0));
+
+	b_isWallRunning = false;
+
+	m_camTiltTimeline->Reverse();
+	m_wallRunTimeline->Stop();
+}
+
 void ALazerTagCharacter::SetMaxWalkSpeed()
 {
 	switch (CurrentMoveState)
 	{
-		case MovementStates::WALKING:
+		case EMovementStates::WALKING:
 			m_characterMovement->MaxWalkSpeed = f_walkSpeed;
 			break;
-		case MovementStates::SPRINTING:
+		case EMovementStates::SPRINTING:
 			m_characterMovement->MaxWalkSpeed = f_sprintSpeed;
 			break;
-		case MovementStates::CROUCHING:
+		case EMovementStates::CROUCHING:
 			m_characterMovement->MaxWalkSpeed = f_crouchSpeed;
 			break;
-		case MovementStates::SLIDING:
+		case EMovementStates::SLIDING:
 			break;
 	}
 }
