@@ -104,12 +104,6 @@ public:
 		LEFT,
 	};
 
-	enum class EStopWallRunningReason
-	{
-		FALLOFF = 0,
-		JUMP,
-	};
-
 	void BeginCrouch();
 
 	void EndCrouch();
@@ -120,8 +114,9 @@ public:
 
 	void BeginWallRun();
 
-	void EndWallRun(EStopWallRunningReason reason);
+	void EndWallRun();
 
+	// delegate invoked by the OnComponentHit event
 	FScriptDelegate OnCapsuleHit;
 
 	// delegate that is binded with CrouchTimelineUpdate
@@ -133,6 +128,7 @@ public:
 	// delegate that is binded with SlideTimelineUpdate
 	FOnTimelineFloat SlideInterp;
 
+	// delegate that is binded with WallRunUpdate
 	FOnTimelineFloat WallRunInterp;
 
 
@@ -170,6 +166,7 @@ private:
 	const float f_walkSpeed = 600.f;
 	const float f_sprintSpeed = 1200.f;
 	const float f_crouchSpeed = 300.f;
+	FVector m_slideDir;
 
 	/* Wall Running */
 	FVector m_wallRunDir;
@@ -184,6 +181,7 @@ private:
 	UTimelineComponent* m_camTiltTimeline;
 	UTimelineComponent* m_wallRunTimeline;
 
+	// curves used for the timelines
 	UPROPERTY(EditAnywhere, Category = "Timeline")
 	UCurveFloat* fCrouchCurve;
 
@@ -226,38 +224,98 @@ protected:
 	 */
 	void LookUpAtRate(float Rate);
 
+	/* Overrides the ACharacter definition of Jump. This will allow the player to double jump. */
 	void Jump() override;
 
+	/* 
+	* Overrides the ACharacter definition of Landed. This is called once the character reaches the ground. 
+	* Once that happens the jumps need to be reset.
+	*/
 	void Landed(const FHitResult& Hit) override;
 
+	/* Binded to a key and performs the crouching adjustments needed. */
 	void Crouch();
+
+	/* Binded to a key and reverses all the changes made by Crouch */
 	void Stand();
 
+	/* Binded to a key. Makes the player move faster. */
 	void Sprint();
+
+	/* Stops the sprint to move into a new movement state */
 	void StopSprint();
 
+	/* Sets movement state of player. This is called whenever a state change is requested by one of the previous functions. */
 	void SetMovementState(EMovementStates newState);
 
+	/* Different speeds depending on what the player's movement state is so this sets it. */
 	void SetMaxWalkSpeed();
 
+	/* 
+	* Gets the direction and magnitude of the slide direction. For instance this would return a larger vector if the floor was steeper .
+	* @returns FVector - The amount of influence the floor has on the player in vector form.
+	*/
 	FVector CalculateFloorInfluence();
 
+	/*
+	* Checks if the player currently has the ability to sprint based on numerous factors.
+	* @returns bool	- true: if the player can infact sprint
+	*				  false: player is not able to sprint at this time
+	*/
 	bool CanSprint();
 
+	/*
+	* Checks if the player currently has the ability to stand based on if there is anything above them blocking them.
+	* @returns bool	- true: if there is nothing blocking the player from standing
+	*				  false: the player is currently being restricted by something above them
+	*/
 	bool CanStand();
 
+	/*
+	* Checks if the player currently is wall running.
+	* @returns bool	- true: if the player is wall running
+	*				  false: player is not wall running
+	*/
 	bool OnWall();
 
+	/*
+	* First checks if the player has any jumps left and then uses one up. This check is not done if a player is wall running.
+	* @returns bool	- true: if jump was successful and the jump count was decremented 
+	*				  false: player has no jumps left
+	*/
 	bool UseJump();
 
+	/* Resets the players amount of jumps to whatever the max jumps number is */
 	void ResetJump();
 
+	/*
+	* Determines if the surface the player collides with can be wall run.
+	* @param - A vector that represents the normal of the surface that the player has collided with
+	* @returns bool - true: the angle between the surface and the ground is below the walkable angle and can be wall run
+	*				  false: the surface is not steep enough to be considered a runnable wall
+	*/
 	bool WallRunnable(FVector surfaceNormal);
 
+	/*
+	* Once the wall is determined to be runnable the direction the player travels must be caluclated.
+	* @param - A vector that represents the normal of the wall that is currently being run on
+	* @returns FVector - the new direction that the player is travelling along the wall
+	*/
 	FVector FindWallRunDir(FVector wallNormal);
 
+	/*
+	* The direction to jump differs depending if the player is on a wall or not.
+	* This calculates what direction the jump velocity should be in.
+	* @returns FVector - A vector representing the velocity of the jump
+	*/
 	FVector FindLaunchVelocity();
 
+	/*
+	* This determines if the player is holding down the proper keys needed to wall run.
+	* They must be holding down the forward key as well as the left or right key depending on what side the wall is on.
+	* @returns bool - true: player is holding down correct keys and can start/continue wall running
+	*				  false: player is not holding down proper keys and wall running should be stopped
+	*/
 	bool CanWallRun();
 
 	FVector GetHorizontalVel();

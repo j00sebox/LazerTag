@@ -12,8 +12,11 @@
 #include "Kismet/GameplayStatics.h"
 #include "MotionControllerComponent.h"
 #include "XRMotionControllerBase.h" // for FXRMotionControllerBase::RightHandSourceId
+#include <string>
 
 DEFINE_LOG_CATEGORY_STATIC(LogFPChar, Warning, All);
+
+#define __VR__ 0
 
 //////////////////////////////////////////////////////////////////////////
 // ALazerTagCharacter
@@ -43,7 +46,6 @@ ALazerTagCharacter::ALazerTagCharacter()
 	// set our turn rates for input
 	BaseTurnRate = 45.f;
 	BaseLookUpRate = 45.f;
-
 	// Create a CameraComponent	
 	FirstPersonCameraComponent = CreateDefaultSubobject<UCameraComponent>(TEXT("FirstPersonCamera"));
 	FirstPersonCameraComponent->SetupAttachment(GetCapsuleComponent());
@@ -63,6 +65,7 @@ ALazerTagCharacter::ALazerTagCharacter()
 	_standCollisionParams.AddIgnoredComponent(GetCapsuleComponent());
 	_standCollisionParams.AddIgnoredActor(this);
 
+#if __VR__ == 0
 	// Create a gun mesh component
 	FP_Gun = CreateDefaultSubobject<USkeletalMeshComponent>(TEXT("FP_Gun"));
 	FP_Gun->SetOnlyOwnerSee(false);			// otherwise won't be visible in the multiplayer
@@ -83,6 +86,7 @@ ALazerTagCharacter::ALazerTagCharacter()
 	// Note: The ProjectileClass and the skeletal mesh/anim blueprints for Mesh1P, FP_Gun, and VR_Gun 
 	// are set in the derived blueprint asset named MyCharacter to avoid direct content references in C++.
 
+#else
 	// Create VR Controllers.
 	R_MotionController = CreateDefaultSubobject<UMotionControllerComponent>(TEXT("R_MotionController"));
 	R_MotionController->MotionSource = FXRMotionControllerBase::RightHandSourceId;
@@ -107,7 +111,9 @@ ALazerTagCharacter::ALazerTagCharacter()
 	VR_MuzzleLocation->SetRelativeRotation(FRotator(0.0f, 90.0f, 0.0f));		// Counteract the rotation of the VR gun model.
 
 	// Uncomment the following line to turn motion controllers on by default:
-	//bUsingMotionControllers = true;
+	bUsingMotionControllers = true;
+#endif
+
 }
 
 void ALazerTagCharacter::BeginPlay()
@@ -144,6 +150,7 @@ void ALazerTagCharacter::BeginPlay()
 		m_slideTimeline->AddInterpFloat(fTickCurve, SlideInterp, FName("SlideTick"));
 
 		// general settings for timeline
+		m_slideTimeline->SetLooping(true);
 		m_slideTimeline->SetIgnoreTimeDilation(true);
 
 		m_wallRunTimeline->AddInterpFloat(fTickCurve, WallRunInterp, FName("WallRunTick"));
@@ -210,7 +217,7 @@ void ALazerTagCharacter::WallRunUpdate(float value)
 		FVector end = start + intoWall;
 
 		if(!GetWorld()->LineTraceSingleByChannel(hit, start, end, ECC_WorldStatic, _standCollisionParams))
-			EndWallRun(EStopWallRunningReason::FALLOFF);
+			EndWallRun();
 		else
 		{
 			EWallSide prevWallSide = CurrentSide;
@@ -223,13 +230,13 @@ void ALazerTagCharacter::WallRunUpdate(float value)
 			}
 			else
 			{
-				EndWallRun(EStopWallRunningReason::FALLOFF);
+				EndWallRun();
 			}
 		}
 	}
 	else
 	{
-		EndWallRun(EStopWallRunningReason::FALLOFF);
+		EndWallRun();
 	}
 }
 
@@ -241,6 +248,8 @@ void ALazerTagCharacter::SlideTimelineUpdate(float value)
 
 	FVector vel = GetVelocity();
 
+	float debug = vel.Size();
+
 	if (vel.Size() > f_sprintSpeed)
 	{
 		vel.Normalize();
@@ -250,6 +259,7 @@ void ALazerTagCharacter::SlideTimelineUpdate(float value)
 	else if (vel.Size() < f_crouchSpeed)
 	{
 		m_characterMovement->Velocity = FVector(0, 0, 0);
+		
 		SetMovementState(EMovementStates::WALKING);
 	}
 }
@@ -358,12 +368,14 @@ FVector ALazerTagCharacter::FindLaunchVelocity()
 	{
 		if (CurrentSide == EWallSide::LEFT)
 		{
-			launchVelocity = FVector::CrossProduct(m_wallRunDir, FVector::UpVector);
+			launchVelocity = FVector::CrossProduct(m_wallRunDir, -FVector::UpVector);
 		}
 		else
 		{
-			launchVelocity = FVector::CrossProduct(m_wallRunDir, -FVector::UpVector);
+			launchVelocity = FVector::CrossProduct(m_wallRunDir, FVector::UpVector);
 		}
+
+		launchVelocity += FVector::UpVector;
 
 		launchVelocity.Normalize();
 	}
@@ -498,7 +510,7 @@ void ALazerTagCharacter::MoveForward(float Value)
 {
 	f_forwardMovement = Value;
 
-	if (Value != 0.0f)
+	if (Value != 0.0f && CurrentMoveState != EMovementStates::SLIDING)
 	{
 		// add movement in that direction
 		AddMovementInput(GetActorForwardVector(), Value);
@@ -506,6 +518,11 @@ void ALazerTagCharacter::MoveForward(float Value)
 		if (CurrentMoveState == EMovementStates::CROUCHING && CanStand())
 		{
 			EndCrouch();
+
+			if (b_sprintKeyDown)
+			{
+				SetMovementState(EMovementStates::SPRINTING);
+			}
 		}
 	}
 }
@@ -546,7 +563,7 @@ void ALazerTagCharacter::Jump()
 		LaunchCharacter(FindLaunchVelocity(), false, true);
 
 		if (OnWall())
-			EndWallRun(EStopWallRunningReason::JUMP);
+			EndWallRun();
 	}
 	
 
@@ -580,9 +597,9 @@ void ALazerTagCharacter::Sprint()
 	if (!b_sprintKeyDown)
 	{
 		b_sprintKeyDown = true;
-
-		SetMovementState(EMovementStates::SPRINTING);
 	}
+	
+	SetMovementState(EMovementStates::SPRINTING);
 }
 
 void ALazerTagCharacter::StopSprint()
@@ -600,7 +617,9 @@ void ALazerTagCharacter::SetMovementState(EMovementStates newState)
 		{
 			
 			if (newState == EMovementStates::SPRINTING && CanSprint())
+			{
 				CurrentMoveState = newState;
+			}
 			else if (newState == EMovementStates::CROUCHING)
 			{
 				BeginCrouch();
@@ -611,7 +630,7 @@ void ALazerTagCharacter::SetMovementState(EMovementStates newState)
 		}
 		case EMovementStates::SPRINTING:
 		{
-			if (newState == EMovementStates::CROUCHING)
+			if (newState == EMovementStates::CROUCHING && !b_isWallRunning)
 			{
 				CurrentMoveState = EMovementStates::SLIDING;
 				BeginCrouch();
@@ -675,6 +694,8 @@ void ALazerTagCharacter::BeginSlide()
 
 	f_camXRotation = f_camXRotationOffRight;
 
+	m_slideDir = GetActorForwardVector();
+
 	m_slideTimeline->Play();
 	m_camTiltTimeline->Play();
 }
@@ -704,11 +725,13 @@ void ALazerTagCharacter::BeginWallRun()
 	else
 		f_camXRotation = f_camXRotationOffRight;
 
+	SetMovementState(EMovementStates::SPRINTING);
+
 	m_camTiltTimeline->Play();
 	m_wallRunTimeline->Play();
 }
 
-void ALazerTagCharacter::EndWallRun(EStopWallRunningReason reason)
+void ALazerTagCharacter::EndWallRun()
 {
 	m_characterMovement->AirControl = .05f;
 
@@ -768,7 +791,7 @@ bool ALazerTagCharacter::CanSprint()
 	if (!b_sprintKeyDown)
 		return false;
 	
-	return !m_characterMovement->IsFalling() && CanStand();
+	return  /* !m_characterMovement->IsFalling()  && **/ CanStand();
 
 }
 
