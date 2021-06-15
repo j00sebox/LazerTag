@@ -26,11 +26,13 @@ ALazerTagCharacter::ALazerTagCharacter()
 	m_characterMovement = GetCharacterMovement();
 	m_characterMovement->MaxWalkSpeed = f_walkSpeed;
 
+	// timelines are used for certain state transitions
 	m_crouchTimeline = CreateDefaultSubobject<UTimelineComponent>(TEXT("CrouchTimeline"));
 	m_camTiltTimeline = CreateDefaultSubobject<UTimelineComponent>(TEXT("CamTiltTimeline"));
 	m_slideTimeline = CreateDefaultSubobject<UTimelineComponent>(TEXT("SlideTimeline"));
 	m_wallRunTimeline = CreateDefaultSubobject<UTimelineComponent>(TEXT("WallRunTimeline"));
 
+	// bind delegates to the timeline update functions
 	CrouchInterp.BindUFunction(this, FName("CrouchTimelineUpdate"));
 	CamInterp.BindUFunction(this, FName("CamTiltTimelineUpdate"));
 	SlideInterp.BindUFunction(this, FName("SlideTimelineUpdate"));
@@ -39,13 +41,14 @@ ALazerTagCharacter::ALazerTagCharacter()
 	// Set size for collision capsule
 	GetCapsuleComponent()->InitCapsuleSize(55.f, f_standingCapsuleHalfHeight);
 
+	// need event for wall running
 	OnCapsuleHit.BindUFunction(this, FName("CapsuleHit"));
-
 	GetCapsuleComponent()->OnComponentHit.Add(OnCapsuleHit);
 
 	// set our turn rates for input
 	BaseTurnRate = 45.f;
 	BaseLookUpRate = 45.f;
+
 	// Create a CameraComponent	
 	FirstPersonCameraComponent = CreateDefaultSubobject<UCameraComponent>(TEXT("FirstPersonCamera"));
 	FirstPersonCameraComponent->SetupAttachment(GetCapsuleComponent());
@@ -58,12 +61,15 @@ ALazerTagCharacter::ALazerTagCharacter()
 	Mesh1P->SetupAttachment(FirstPersonCameraComponent);
 	Mesh1P->bCastDynamicShadow = false;
 	Mesh1P->CastShadow = false;
-	Mesh1P->SetRelativeRotation(FRotator(1.9f, -19.19f, 5.2f));
-	Mesh1P->SetRelativeLocation(FVector(-0.5f, -4.4f, -155.7f));
 
+	// these params are used for tracing a ray to check if the player can stand
 	_standCollisionParams.AddIgnoredComponent(Mesh1P);
 	_standCollisionParams.AddIgnoredComponent(GetCapsuleComponent());
 	_standCollisionParams.AddIgnoredActor(this);
+	
+	// Mesh is the multiplayer mesh that other players can see
+	Mesh->SetOwnerNoSee(true);
+	_standCollisionParams.AddIgnoredComponent(Mesh);
 
 #if __VR__ == 0
 	// Create a gun mesh component
@@ -71,14 +77,12 @@ ALazerTagCharacter::ALazerTagCharacter()
 	FP_Gun->SetOnlyOwnerSee(false);			// otherwise won't be visible in the multiplayer
 	FP_Gun->bCastDynamicShadow = false;
 	FP_Gun->CastShadow = false;
-	// FP_Gun->SetupAttachment(Mesh1P, TEXT("GripPoint"));
 	FP_Gun->SetupAttachment(RootComponent);
 
 	_standCollisionParams.AddIgnoredComponent(FP_Gun);
 
 	FP_MuzzleLocation = CreateDefaultSubobject<USceneComponent>(TEXT("MuzzleLocation"));
 	FP_MuzzleLocation->SetupAttachment(FP_Gun);
-	FP_MuzzleLocation->SetRelativeLocation(FVector(0.2f, 48.4f, -10.6f));
 
 	// Default offset from the character location for projectiles to spawn
 	GunOffset = FVector(100.0f, 0.0f, 10.0f);
@@ -130,8 +134,10 @@ void ALazerTagCharacter::BeginPlay()
 		m_crouchTimeline->AddInterpFloat(fCrouchCurve, CrouchInterp, FName("CrouchPro"));
 
 		m_camStartVec = FirstPersonCameraComponent->GetRelativeLocation();
+		m_meshStartVec = Mesh->GetRelativeLocation();
 
 		m_camEndVec = FVector(m_camStartVec.X, m_camEndVec.Y, m_camStartVec.Z - f_cameraZOffset);
+		m_meshEndVec = FVector(m_meshStartVec.X, m_meshStartVec.Y, m_meshStartVec.Z + f_meshZOffset);
 
 		// general settings for timeline
 		m_crouchTimeline->SetLooping(false);
@@ -179,8 +185,14 @@ void ALazerTagCharacter::BeginPlay()
 
 void ALazerTagCharacter::CrouchTimelineUpdate(float value)
 {
+	// need to reduce the capsule size for the duration of the crouch/slide
 	GetCapsuleComponent()->SetCapsuleHalfHeight(FMath::Lerp(f_standingCapsuleHalfHeight, f_standingCapsuleHalfHeight*f_capsuleHeightScale, value));
+	
+	// the mesh needs to be offset as well so it doesn't clip through the floor
+	FVector currentMeshPos = Mesh->GetRelativeLocation();
+	Mesh->SetRelativeLocation(FVector(currentMeshPos.X, currentMeshPos.Y, FMath::Lerp(m_meshStartVec.Z, m_meshEndVec.Z, value)));
 
+	// lower camera view
 	FVector currentCamPos = FirstPersonCameraComponent->GetRelativeLocation();
 	FirstPersonCameraComponent->SetRelativeLocation(FVector(currentCamPos.X, currentCamPos.Y, FMath::Lerp(m_camStartVec.Z, m_camEndVec.Z, value)));
 }
@@ -191,7 +203,14 @@ void ALazerTagCharacter::CamTiltTimelineUpdate(float value)
 
 	FRotator currentCamRot = controller->GetControlRotation();
 
-	currentCamRot = FRotator(currentCamRot.Pitch, currentCamRot.Yaw, FMath::Lerp(0.f, f_camXRotation, value));
+	currentCamRot = FRotator(currentCamRot.Pitch, currentCamRot.Yaw, FMath::Lerp(0.f, f_camRollRotation, value));
+
+	if (b_isWallRunning)
+	{
+		FRotator currentMeshRot = Mesh->GetRelativeRotation();
+		currentMeshRot = FRotator(FMath::Lerp(0.f, f_meshPitchRotation, value), currentMeshRot.Yaw, currentMeshRot.Roll);
+		Mesh->SetRelativeRotation(currentMeshRot);
+	}
 
 	controller->SetControlRotation(currentCamRot);
 }
@@ -201,21 +220,25 @@ void ALazerTagCharacter::WallRunUpdate(float value)
 
 	FHitResult hit;
 
+	// while the player can still wall run
 	if (CanWallRun())
 	{
 		FVector start = GetActorLocation();
 
 		FVector intoWall;
 
+		// check what side of the player the wall is on to get a vector that goes into the wall
 		if (CurrentSide == EWallSide::LEFT)
 			intoWall = FVector::CrossProduct(m_wallRunDir, FVector::UpVector);
 		else
 			intoWall = FVector::CrossProduct(m_wallRunDir, -FVector::UpVector);
 
+		// scale vector so it is large enough to actually reach the wall
 		intoWall *= 100;
 
 		FVector end = start + intoWall;
 
+		// if there is no hit then the player is no longer on a wall 
 		if(!GetWorld()->LineTraceSingleByChannel(hit, start, end, ECC_WorldStatic, _standCollisionParams))
 			EndWallRun();
 		else
@@ -405,19 +428,6 @@ bool ALazerTagCharacter::CanWallRun()
 	return (f_forwardMovement > 0.1f) && correctKey;
 }
 
-FVector ALazerTagCharacter::GetHorizontalVel()
-{
-	return FVector();
-}
-
-void ALazerTagCharacter::SetHorizontalVel()
-{
-}
-
-void ALazerTagCharacter::ClampHorizontalVel()
-{
-}
-
 void ALazerTagCharacter::SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent)
 {
 	// set up gameplay key bindings
@@ -589,7 +599,14 @@ void ALazerTagCharacter::Stand()
 {
 	b_crouchKeyDown = false;
 
-	SetMovementState(EMovementStates::WALKING);
+	if (b_sprintKeyDown)
+	{
+		SetMovementState(EMovementStates::SPRINTING);
+	}
+	else
+	{
+		SetMovementState(EMovementStates::WALKING);
+	}
 }
 
 void ALazerTagCharacter::Sprint()
@@ -692,7 +709,7 @@ void ALazerTagCharacter::BeginSlide()
 
 	m_characterMovement->BrakingDecelerationWalking = 1000.f;
 
-	f_camXRotation = f_camXRotationOffRight;
+	f_camRollRotation = f_camRollRotationOffRight;
 
 	m_slideDir = GetActorForwardVector();
 
@@ -721,9 +738,16 @@ void ALazerTagCharacter::BeginWallRun()
 	b_isWallRunning = true;
 
 	if (CurrentSide == EWallSide::LEFT)
-		f_camXRotation = f_camXRotationOffLeft;
+	{
+		f_camRollRotation = f_camRollRotationOffLeft;
+		f_meshPitchRotation = f_meshPitchRotationOffLeft;
+	}
 	else
-		f_camXRotation = f_camXRotationOffRight;
+	{
+		f_camRollRotation = f_camRollRotationOffRight;
+		f_meshPitchRotation = f_meshPitchRotationOffRight;
+	}
+		
 
 	SetMovementState(EMovementStates::SPRINTING);
 

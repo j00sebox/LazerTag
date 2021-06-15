@@ -18,6 +18,15 @@ class USoundBase;
 class UTimelineComponent;
 class UCurveFloat;
 
+UENUM(BlueprintType)
+enum class EMovementStates : uint8
+{
+	WALKING = 0		UMETA(DisplayName="WALKING"),
+	CROUCHING		UMETA(DisplayName = "CROUCHING"),
+	SPRINTING		UMETA(DisplayName = "SPRINTING"),
+	SLIDING			UMETA(DisplayName = "SLIDING"),
+};
+
 UCLASS(config=Game)
 class ALazerTagCharacter : public ACharacter
 {
@@ -90,22 +99,23 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Gameplay)
 	uint8 bUsingMotionControllers : 1;
 
-	enum class EMovementStates
-	{
-		WALKING = 0,
-		CROUCHING,
-		SPRINTING,
-		SLIDING,
-	};
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Gameplay)
+	float f_forwardMovement;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Gameplay)
+	EMovementStates CurrentMoveState = EMovementStates::WALKING;
 	
+	// this state represents whats side the wall is on relative to the player while wall running
 	enum class EWallSide
 	{
 		RIGHT = 0,
 		LEFT,
 	};
 
+	// starts the crouching timeline
 	void BeginCrouch();
 
+	// reverses crouching timeline
 	void EndCrouch();
 
 	void BeginSlide();
@@ -133,40 +143,53 @@ public:
 
 
 	UFUNCTION()
+	/* event triggers everytime player comes into contact with a surface*/
 	void CapsuleHit(const FHitResult& Hit);
 
 	UFUNCTION()
+	/* perform crouching events such as lowering camera */
 	void CrouchTimelineUpdate(float value);
 
 	UFUNCTION()
+	/* event that gradually tilts camera while wall running or sliding */
 	void CamTiltTimelineUpdate(float value);
 
 	UFUNCTION()
+	/* slide events */
 	void SlideTimelineUpdate(float value);
 
 	UFUNCTION()
+	/* wall running events */
 	void WallRunUpdate(float value);
 
 
 private:
 
-	EMovementStates CurrentMoveState = EMovementStates::WALKING;
+	
 	bool b_crouchKeyDown;
 	bool b_sprintKeyDown;
 	
 	/* General Movement */
-	float f_forwardMovement;
-	float f_sideMovement;
-	float f_capsuleHeightScale = .5f;
-	float f_cameraZOffset = 64.f;
-	float f_standingCapsuleHalfHeight = 96.f;
-	float f_camXRotationOffLeft = 10.f;
-	float f_camXRotationOffRight = -10.f;
-	float f_camXRotation;
 	const float f_walkSpeed = 600.f;
 	const float f_sprintSpeed = 1200.f;
 	const float f_crouchSpeed = 300.f;
 	FVector m_slideDir;
+
+	float f_sideMovement;
+	float f_capsuleHeightScale = .5f;
+	float f_cameraZOffset = 64.f;
+
+	UPROPERTY(Category = Character, EditAnywhere, BlueprintReadWrite, meta = (AllowPrivateAccess = "true"))
+	float f_meshZOffset = 50.0f;
+	float f_standingCapsuleHalfHeight = 96.f;
+
+	/* Rotation Info */
+	float f_camRollRotationOffLeft = 10.f;
+	float f_camRollRotationOffRight = -10.f;
+	float f_camRollRotation;
+	float f_meshPitchRotationOffLeft = 35.f;
+	float f_meshPitchRotationOffRight = -35.f;
+	float f_meshPitchRotation;
 
 	/* Wall Running */
 	FVector m_wallRunDir;
@@ -193,6 +216,9 @@ private:
 
 	UPROPERTY()
 	FVector m_camEndVec;
+
+	FVector m_meshStartVec;
+	FVector m_meshEndVec;
 
 	UCharacterMovementComponent* m_characterMovement;
 
@@ -317,12 +343,6 @@ protected:
 	*				  false: player is not holding down proper keys and wall running should be stopped
 	*/
 	bool CanWallRun();
-
-	FVector GetHorizontalVel();
-
-	void SetHorizontalVel();
-
-	void ClampHorizontalVel();
 	
 protected:
 	// APawn interface
