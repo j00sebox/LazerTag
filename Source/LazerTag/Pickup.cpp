@@ -10,7 +10,13 @@ APickup::APickup()
 	// these don't need to tick every frame
 	PrimaryActorTick.bCanEverTick = false;
 
-	b_isActive = true;
+	// StaticMeshActorDisables overlap events by default
+	GetStaticMeshComponent()->SetGenerateOverlapEvents(true);
+
+	if (GetLocalRole() == ROLE_Authority)
+	{
+		b_isActive = true;
+	}
 }
 
 void APickup::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
@@ -40,7 +46,28 @@ void APickup::WasCollected_Implementation()
 	UE_LOG(LogClass, Log, TEXT("Pickup Collected %s"), *GetName());
 }
 
-void APickup::OnRep_PickUp()
+void APickup::Server_PickedUpBy(APawn* Pawn)
+{
+	if ( GetLocalRole() == ROLE_Authority )
+	{
+		// store pawn that picked up the object on server side
+		pickupInsitgator = Pawn;
+
+		// broadcast to clients of the pickup event
+		OnPickedUpBy(Pawn);
+	}
+}
+
+void APickup::OnPickedUpBy_Implementation(APawn* Pawn)
+{
+	// store instigator on client side
+	pickupInsitgator = Pawn;
+
+	// trigger blueprint native event that cannot be replicated
+	WasCollected();
+}
+
+void APickup::OnRep_IsActive()
 {
 	// TODO
 }

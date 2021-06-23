@@ -14,11 +14,13 @@ AShield::AShield()
 	GetStaticMeshComponent()->SetSimulatePhysics(true);
 }
 
-void AShield::WasCollected_Implementation()
+void AShield::Server_PickedUpBy(APawn* Pawn)
 {
-	// allow parent class to handle first
-	Super::WasCollected_Implementation();
+	Super::Server_PickedUpBy(Pawn);
 
-	// destroy shield object
-	Destroy();
+	if ( GetLocalRole() == ROLE_Authority )
+	{
+		// give client time to play effects
+		SetLifeSpan(f_lifeSpan);
+	}
 }

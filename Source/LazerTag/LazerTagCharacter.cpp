@@ -227,7 +227,7 @@ void ALazerTagCharacter::Server_CollectPickup_Implementation()
 			if( obj != NULL && !obj->IsPendingKill() && obj->IsActive() )
 			{
 				// collect pickup and deactivate
-				obj->WasCollected();
+				obj->Server_PickedUpBy(this);
 				obj->SetActive(false);
 			}
 		}

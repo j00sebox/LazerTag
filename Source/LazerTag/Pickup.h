@@ -32,8 +32,13 @@ public:
 	// function to call when pickup is collected
 	UFUNCTION(BlueprintNativeEvent, Category = "Pickup")
 	void WasCollected();
-
 	virtual void WasCollected_Implementation();
+
+	// server handling of being picked up
+	virtual void Server_PickedUpBy(APawn* Pawn);
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Pickup")
+	float f_lifeSpan = 2.f;
 
 protected:
 	
@@ -41,8 +46,18 @@ protected:
 	UPROPERTY(Replicated)
 	bool b_isActive;
 
-	// called when item is pickedup/dropped
+	// called when b_isActive is updated
 	UFUNCTION()
-	virtual void OnRep_PickUp();
+	virtual void OnRep_IsActive();
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Pickup")
+	APawn* pickupInsitgator;
+
+private:
+
+	// client handling of being picked up
+	UFUNCTION(NetMulticast, Unreliable)
+	void OnPickedUpBy(APawn* Pawn);
+	void OnPickedUpBy_Implementation(APawn* Pawn);
 	
 };

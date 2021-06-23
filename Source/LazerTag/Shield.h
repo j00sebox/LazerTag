@@ -18,7 +18,7 @@ public:
 
 	AShield();
 
-	// handle being pickedup
-	void WasCollected_Implementation() override;
+	UFUNCTION(BlueprintAuthorityOnly, Category = "Pickup")
+	void Server_PickedUpBy(APawn* Pawn) override;
 	
 };

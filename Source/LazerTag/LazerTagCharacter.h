@@ -58,7 +58,7 @@ class ALazerTagCharacter : public ACharacter
 	UCameraComponent* FirstPersonCameraComponent;
 
 	/** Pickup Sphere */
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Pickup", meta = (AllowPrivateAccess = "true"))
+	UPROPERTY(Replicated, VisibleAnywhere, BlueprintReadOnly, Category = "Pickup", meta = (AllowPrivateAccess = "true"))
 	USphereComponent* pickupSphere;
 
 	/** Motion controller (right hand) */
