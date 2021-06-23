@@ -5,6 +5,7 @@
 #include "Animation/AnimInstance.h"
 #include "Camera/CameraComponent.h"
 #include "Components/CapsuleComponent.h"
+#include "Components/SphereComponent.h"
 #include "Components/InputComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/InputSettings.h"
@@ -13,6 +14,8 @@
 #include "MotionControllerComponent.h"
 #include "XRMotionControllerBase.h" // for FXRMotionControllerBase::RightHandSourceId
 #include <string>
+#include "Net/UnrealNetwork.h"
+#include "Pickup.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogFPChar, Warning, All);
 
@@ -55,6 +58,14 @@ ALazerTagCharacter::ALazerTagCharacter()
 	FirstPersonCameraComponent->SetRelativeLocation(FVector(-39.56f, 1.75f, f_cameraZOffset)); // Position the camera
 	FirstPersonCameraComponent->bUsePawnControlRotation = true;
 
+	// set base sphere radius
+	f_pickupSphereRadius = 200.f;
+
+	// create pickup sphere
+	pickupSphere = CreateAbstractDefaultSubobject<USphereComponent>(TEXT("PickupSphere"));
+	pickupSphere->SetupAttachment(RootComponent);
+	pickupSphere->SetSphereRadius(f_pickupSphereRadius);
+
 	// Create a mesh component that will be used when being viewed from a '1st person' view (when controlling this pawn)
 	Mesh1P = CreateDefaultSubobject<USkeletalMeshComponent>(TEXT("CharacterMesh1P"));
 	Mesh1P->SetOnlyOwnerSee(true);
@@ -68,8 +79,8 @@ ALazerTagCharacter::ALazerTagCharacter()
 	_standCollisionParams.AddIgnoredActor(this);
 	
 	// Mesh is the multiplayer mesh that other players can see
-	Mesh->SetOwnerNoSee(true);
-	_standCollisionParams.AddIgnoredComponent(Mesh);
+	//Mesh->SetOwnerNoSee(true);
+	_standCollisionParams.AddIgnoredComponent(GetMesh());
 
 #if __VR__ == 0
 	// Create a gun mesh component
@@ -120,6 +131,13 @@ ALazerTagCharacter::ALazerTagCharacter()
 
 }
 
+void ALazerTagCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
+{
+	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
+
+	DOREPLIFETIME(ALazerTagCharacter, pickupSphere);
+}
+
 void ALazerTagCharacter::BeginPlay()
 {
 	// Call the base class  
@@ -134,7 +152,7 @@ void ALazerTagCharacter::BeginPlay()
 		m_crouchTimeline->AddInterpFloat(fCrouchCurve, CrouchInterp, FName("CrouchPro"));
 
 		m_camStartVec = FirstPersonCameraComponent->GetRelativeLocation();
-		m_meshStartVec = Mesh->GetRelativeLocation();
+		m_meshStartVec = GetMesh()->GetRelativeLocation();
 
 		m_camEndVec = FVector(m_camStartVec.X, m_camEndVec.Y, m_camStartVec.Z - f_cameraZOffset);
 		m_meshEndVec = FVector(m_meshStartVec.X, m_meshStartVec.Y, m_meshStartVec.Z + f_meshZOffset);
@@ -179,8 +197,41 @@ void ALazerTagCharacter::BeginPlay()
 		//VR_Gun->SetHiddenInGame(true, true);
 		Mesh1P->SetHiddenInGame(false, true);
 	}
+}
 
-	
+void ALazerTagCharacter::CollectPickup()
+{
+	// ask server to collect pickups
+	Server_CollectPickup();
+}
+
+bool ALazerTagCharacter::Server_CollectPickup_Validate()
+{
+	return true;
+}
+
+void ALazerTagCharacter::Server_CollectPickup_Implementation()
+{
+	if (GetLocalRole() == ROLE_Authority)
+	{
+		// get all overlapping actors and store
+		TArray<AActor*> overlapActors;
+
+		pickupSphere->GetOverlappingActors(overlapActors);
+
+		// find an APickup onbject 
+		for(int i = 0; i < overlapActors.Num(); i++)
+		{
+			APickup* const obj = Cast<APickup>(overlapActors[i]);
+
+			if( obj != NULL && !obj->IsPendingKill() && obj->IsActive() )
+			{
+				// collect pickup and deactivate
+				obj->WasCollected();
+				obj->SetActive(false);
+			}
+		}
+	}
 }
 
 void ALazerTagCharacter::CrouchTimelineUpdate(float value)
@@ -189,8 +240,8 @@ void ALazerTagCharacter::CrouchTimelineUpdate(float value)
 	GetCapsuleComponent()->SetCapsuleHalfHeight(FMath::Lerp(f_standingCapsuleHalfHeight, f_standingCapsuleHalfHeight*f_capsuleHeightScale, value));
 	
 	// the mesh needs to be offset as well so it doesn't clip through the floor
-	FVector currentMeshPos = Mesh->GetRelativeLocation();
-	Mesh->SetRelativeLocation(FVector(currentMeshPos.X, currentMeshPos.Y, FMath::Lerp(m_meshStartVec.Z, m_meshEndVec.Z, value)));
+	FVector currentMeshPos = GetMesh()->GetRelativeLocation();
+	GetMesh()->SetRelativeLocation(FVector(currentMeshPos.X, currentMeshPos.Y, FMath::Lerp(m_meshStartVec.Z, m_meshEndVec.Z, value)));
 
 	// lower camera view
 	FVector currentCamPos = FirstPersonCameraComponent->GetRelativeLocation();
@@ -207,9 +258,9 @@ void ALazerTagCharacter::CamTiltTimelineUpdate(float value)
 
 	if (b_isWallRunning)
 	{
-		FRotator currentMeshRot = Mesh->GetRelativeRotation();
+		FRotator currentMeshRot = GetMesh()->GetRelativeRotation();
 		currentMeshRot = FRotator(FMath::Lerp(0.f, f_meshPitchRotation, value), currentMeshRot.Yaw, currentMeshRot.Roll);
-		Mesh->SetRelativeRotation(currentMeshRot);
+		GetMesh()->SetRelativeRotation(currentMeshRot);
 	}
 
 	controller->SetControlRotation(currentCamRot);
@@ -459,6 +510,9 @@ void ALazerTagCharacter::SetupPlayerInputComponent(class UInputComponent* Player
 	PlayerInputComponent->BindAction("Sprint", IE_Released, this, &ALazerTagCharacter::StopSprint);
 	PlayerInputComponent->BindAction("Crouch", IE_Pressed, this, &ALazerTagCharacter::Crouch);
 	PlayerInputComponent->BindAction("Crouch", IE_Released, this, &ALazerTagCharacter::Stand);
+
+	// input to collect pickups
+	InputComponent->BindAction("Pickup", IE_Pressed, this, &ALazerTagCharacter::CollectPickup);
 
 }
 

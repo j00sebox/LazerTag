@@ -17,6 +17,7 @@ class UAnimMontage;
 class USoundBase;
 class UTimelineComponent;
 class UCurveFloat;
+class USphereComponent;
 
 UENUM(BlueprintType)
 enum class EMovementStates : uint8
@@ -56,6 +57,10 @@ class ALazerTagCharacter : public ACharacter
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Camera, meta = (AllowPrivateAccess = "true"))
 	UCameraComponent* FirstPersonCameraComponent;
 
+	/** Pickup Sphere */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Pickup", meta = (AllowPrivateAccess = "true"))
+	USphereComponent* pickupSphere;
+
 	/** Motion controller (right hand) */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, meta = (AllowPrivateAccess = "true"))
 	UMotionControllerComponent* R_MotionController;
@@ -67,8 +72,21 @@ class ALazerTagCharacter : public ACharacter
 public:
 	ALazerTagCharacter();
 
+	// required network setup
+	void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& outLifetimeProps) const override;
+
 protected:
 	virtual void BeginPlay();
+
+	// entry to pickup logic
+	UFUNCTION(BluePrintCallable, Category = "Pickup")
+	void CollectPickup();
+
+	// called on server to process collection of pickups
+	UFUNCTION(Reliable, Server, WithValidation)
+	void Server_CollectPickup();
+	void Server_CollectPickup_Implementation();
+	bool Server_CollectPickup_Validate();
 
 public:
 	/** Base turn rate, in deg/sec. Other scaling may affect final turn rate. */
@@ -162,10 +180,16 @@ public:
 	/* wall running events */
 	void WallRunUpdate(float value);
 
+	// curves used for the timelines
+	UPROPERTY(EditAnywhere, Category = "Timeline")
+	UCurveFloat* fCrouchCurve;
+
+	UPROPERTY(EditAnywhere, Category = "Timeline")
+	UCurveFloat* fTickCurve;
+
 
 private:
 
-	
 	bool b_crouchKeyDown;
 	bool b_sprintKeyDown;
 	
@@ -204,13 +228,6 @@ private:
 	UTimelineComponent* m_camTiltTimeline;
 	UTimelineComponent* m_wallRunTimeline;
 
-	// curves used for the timelines
-	UPROPERTY(EditAnywhere, Category = "Timeline")
-	UCurveFloat* fCrouchCurve;
-
-	UPROPERTY(EditAnywhere, Category = "Timeline")
-	UCurveFloat* fTickCurve;
-
 	UPROPERTY()
 	FVector m_camStartVec;
 
@@ -223,6 +240,9 @@ private:
 	UCharacterMovementComponent* m_characterMovement;
 
 	FCollisionQueryParams _standCollisionParams;
+
+	UPROPERTY(Replicated, VisibleAnywhere, BlueprintReadOnly, Category = "Pickup", Meta = ( AllowPrivateAccess = "true" ) )
+	float f_pickupSphereRadius;
 
 protected:
 	
@@ -351,9 +371,11 @@ protected:
 
 public:
 	/** Returns Mesh1P subobject **/
-	USkeletalMeshComponent* GetMesh1P() const { return Mesh1P; }
+	FORCEINLINE USkeletalMeshComponent* GetMesh1P() const { return Mesh1P; }
 	/** Returns FirstPersonCameraComponent subobject **/
-	UCameraComponent* GetFirstPersonCameraComponent() const { return FirstPersonCameraComponent; }
+	FORCEINLINE UCameraComponent* GetFirstPersonCameraComponent() const { return FirstPersonCameraComponent; }
+	/** Returns the sphere that determines if the player can pickup an object */
+	FORCEINLINE USphereComponent* GetPickupSphere() const { return pickupSphere; }
 
 };
 
