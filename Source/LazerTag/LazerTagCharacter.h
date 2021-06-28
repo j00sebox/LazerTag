@@ -19,13 +19,21 @@ class UTimelineComponent;
 class UCurveFloat;
 class USphereComponent;
 
-UENUM(BlueprintType)
+UENUM(blueprinttype)
 enum class EMovementStates : uint8
 {
 	WALKING = 0		UMETA(DisplayName="WALKING"),
 	CROUCHING		UMETA(DisplayName = "CROUCHING"),
 	SPRINTING		UMETA(DisplayName = "SPRINTING"),
 	SLIDING			UMETA(DisplayName = "SLIDING"),
+};
+
+// this state represents whats side the wall is on relative to the player while wall running
+UENUM(blueprinttype)
+enum class EWallSide : uint8
+{
+	RIGHT = 0,
+	LEFT,
 };
 
 UCLASS(config=Game)
@@ -79,11 +87,11 @@ protected:
 	virtual void BeginPlay();
 
 	// entry to pickup logic
-	UFUNCTION(BluePrintCallable, Category = "Pickup")
+	UFUNCTION(blueprintcallable, category = "Pickup")
 	void CollectPickup();
 
 	// called on server to process collection of pickups
-	UFUNCTION(Reliable, Server, WithValidation)
+	UFUNCTION(reliable, server, withvalidation)
 	void Server_CollectPickup();
 	void Server_CollectPickup_Implementation();
 	bool Server_CollectPickup_Validate();
@@ -117,18 +125,11 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Gameplay)
 	uint8 bUsingMotionControllers : 1;
 
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Gameplay)
+	UPROPERTY(editanywhere, blueprintreadonly, category = Gameplay)
 	float f_forwardMovement;
 
-	UPROPERTY(Replicated, EditAnywhere, BlueprintReadOnly, Category = Gameplay)
+	UPROPERTY(replicated, editanywhere, blueprintreadonly, category = Gameplay)
 	EMovementStates CurrentMoveState = EMovementStates::WALKING;
-
-	// this state represents whats side the wall is on relative to the player while wall running
-	enum class EWallSide
-	{
-		RIGHT = 0,
-		LEFT,
-	};
 
 	// starts the crouching timeline
 	void BeginCrouch();
@@ -181,13 +182,13 @@ public:
 	void WallRunUpdate(float value);
 
 	// curves used for the timelines
-	UPROPERTY(EditAnywhere, Category = "Timeline")
+	UPROPERTY(editanywhere, category = "Timeline")
 	UCurveFloat* fCrouchCurve;
 
-	UPROPERTY(EditAnywhere, Category = "Timeline")
+	UPROPERTY(editanywhere, category = "Timeline")
 	UCurveFloat* fTickCurve;
 
-	UFUNCTION(BlueprintPure, Category = "Shield")
+	UFUNCTION(blueprintpure, category = "Shield")
 	int GetRemainingCharges() const;
 
 	/*
@@ -201,16 +202,17 @@ public:
 protected:
 
 	// initial shield charges
-	UPROPERTY(Replicated, EditAnywhere, BlueprintReadWrite, Category = "Shield")
+	UPROPERTY(replicated, editanywhere, blueprintreadwrite, category = "Shield")
 	int i_shieldCharges = 0;
 
 	// max shield charges player can have
 	UPROPERTY(EditAnywhere, Category = "Shield")
 	int i_maxShieldCharges = 2;
 
-private:
-
+	UPROPERTY( replicated )
 	bool b_crouchKeyDown;
+
+	UPROPERTY( replicated )
 	bool b_sprintKeyDown;
 	
 	/* General Movement */
@@ -223,13 +225,13 @@ private:
 	float f_capsuleHeightScale = .5f;
 	float f_cameraZOffset = 64.f;
 
-	UPROPERTY(Category = Character, EditAnywhere, BlueprintReadWrite, meta = (AllowPrivateAccess = "true"))
+	UPROPERTY( editanywhere, blueprintreadwrite, category = Character, meta = (allowprivateaccess = "true"))
 	float f_meshZOffset = 50.0f;
 
-	UPROPERTY( EditAnywhere, Category = "Capsule")
+	UPROPERTY(editanywhere, category = "Capsule")
 	float f_standingCapsuleHalfHeight = 96.f;
 
-	UPROPERTY( EditAnywhere, Category = "Capsule" )
+	UPROPERTY(editanywhere, category = "Capsule")
 	float f_crouchCapsuleHalfHeight = 55.f;
 
 	/* Rotation Info */
@@ -242,9 +244,16 @@ private:
 
 	/* Wall Running */
 	FVector m_wallRunDir;
+
+	UPROPERTY(replicated)
 	bool b_isWallRunning = false;
+
 	const int i_maxJumps = 2;
+
+	UPROPERTY(replicated)
 	int i_jumpsLeft = i_maxJumps;
+
+	UPROPERTY(replicated)
 	EWallSide CurrentSide;
 
 	/* Timelines */
@@ -266,10 +275,8 @@ private:
 
 	FCollisionQueryParams _standCollisionParams;
 
-	UPROPERTY(Replicated, VisibleAnywhere, BlueprintReadOnly, Category = "Pickup", Meta = ( AllowPrivateAccess = "true" ) )
+	UPROPERTY(replicated, visibleanywhere, blueprintreadonly, category = "Pickup", meta = ( allowprivateaccess = "true" ) )
 	float f_pickupSphereRadius;
-
-protected:
 	
 	/** Fires a projectile. */
 	void OnFire();
@@ -298,6 +305,10 @@ protected:
 	/* Overrides the ACharacter definition of Jump. This will allow the player to double jump. */
 	void Jump() override;
 
+	UFUNCTION(reliable, server)
+	void Server_Jump();
+	void Server_Jump_Implementation();
+
 	/* 
 	* Overrides the ACharacter definition of Landed. This is called once the character reaches the ground. 
 	* Once that happens the jumps need to be reset.
@@ -307,17 +318,37 @@ protected:
 	/* Binded to a key and performs the crouching adjustments needed. */
 	void Crouch();
 
+	UFUNCTION(reliable, server)
+	void Server_Crouch();
+	void Server_Crouch_Implementation();
+
 	/* Binded to a key and reverses all the changes made by Crouch */
 	void Stand();
+
+	UFUNCTION(reliable, server)
+	void Server_Stand();
+	void Server_Stand_Implementation();
 
 	/* Binded to a key. Makes the player move faster. */
 	void Sprint();
 
+	UFUNCTION(reliable, server)
+	void Server_Sprint();
+	void Server_Sprint_Implementation();
+
 	/* Stops the sprint to move into a new movement state */
 	void StopSprint();
 
+	UFUNCTION(reliable, server)
+	void Server_StopSprint();
+	void Server_StopSprint_Implementation();
+
 	/* Sets movement state of player. This is called whenever a state change is requested by one of the previous functions. */
 	void SetMovementState(EMovementStates newState);
+
+	UFUNCTION(reliable, server)
+	void Server_SetMovementState(EMovementStates newState);
+	void Server_SetMovementState_Implementation(EMovementStates newState);
 
 	/* Different speeds depending on what the player's movement state is so this sets it. */
 	void SetMaxWalkSpeed();

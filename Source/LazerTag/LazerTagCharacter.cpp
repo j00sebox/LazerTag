@@ -21,6 +21,7 @@
 DEFINE_LOG_CATEGORY_STATIC(LogFPChar, Warning, All);
 
 #define __VR__ 0
+#define __SERVER__ (ALazerTagCharacter::GetLocalRole() == ROLE_Authority)
 
 //////////////////////////////////////////////////////////////////////////
 // ALazerTagCharacter
@@ -140,6 +141,10 @@ void ALazerTagCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& O
 	DOREPLIFETIME(ALazerTagCharacter, pickupSphere);
 	DOREPLIFETIME(ALazerTagCharacter, i_shieldCharges);
 	DOREPLIFETIME(ALazerTagCharacter, CurrentMoveState);
+	DOREPLIFETIME(ALazerTagCharacter, i_jumpsLeft);
+	DOREPLIFETIME(ALazerTagCharacter, b_isWallRunning);
+	DOREPLIFETIME(ALazerTagCharacter, b_crouchKeyDown);
+	DOREPLIFETIME(ALazerTagCharacter, b_sprintKeyDown);
 }
 
 void ALazerTagCharacter::BeginPlay()
@@ -659,17 +664,21 @@ void ALazerTagCharacter::LookUpAtRate(float Rate)
 
 void ALazerTagCharacter::Jump()
 {
-	
-	if (UseJump())
+	Server_Jump();
+}
+
+void ALazerTagCharacter::Server_Jump_Implementation()
+{
+	if(__SERVER__)
 	{
-		LaunchCharacter(FindLaunchVelocity(), false, true);
+		if (UseJump())
+		{
+			LaunchCharacter(FindLaunchVelocity(), false, true);
 
-		if (OnWall())
-			EndWallRun();
+			if (OnWall())
+				EndWallRun();
+		}
 	}
-	
-
-	return;
 }
 
 void ALazerTagCharacter::Landed(const FHitResult& Hit)
@@ -681,15 +690,22 @@ void ALazerTagCharacter::Landed(const FHitResult& Hit)
 
 void ALazerTagCharacter::Crouch()
 {
-
-	b_crouchKeyDown = true;
+	Server_Crouch();
 
 	SetMovementState(EMovementStates::CROUCHING);
 }
 
+void ALazerTagCharacter::Server_Crouch_Implementation()
+{
+	if (__SERVER__)
+	{
+		b_crouchKeyDown = true;
+	}
+}
+
 void ALazerTagCharacter::Stand()
 {
-	b_crouchKeyDown = false;
+	Server_Stand();
 
 	if (b_sprintKeyDown)
 	{
@@ -701,88 +717,120 @@ void ALazerTagCharacter::Stand()
 	}
 }
 
+void ALazerTagCharacter::Server_Stand_Implementation()
+{
+	if (__SERVER__)
+	{
+		b_crouchKeyDown = false;
+	}
+}
+
 void ALazerTagCharacter::Sprint()
 {
-	if (!b_sprintKeyDown)
+	Server_Sprint();
+
+	Server_SetMovementState(EMovementStates::SPRINTING);
+}
+
+void ALazerTagCharacter::Server_Sprint_Implementation()
+{
+	if (GetLocalRole() == ROLE_Authority)
 	{
-		b_sprintKeyDown = true;
+		if (!b_sprintKeyDown)
+		{
+			b_sprintKeyDown = true;
+		}
 	}
-	
-	SetMovementState(EMovementStates::SPRINTING);
 }
 
 void ALazerTagCharacter::StopSprint()
 {
-	b_sprintKeyDown = false;
+	Server_StopSprint();
 
-	SetMovementState(EMovementStates::WALKING);
+	Server_SetMovementState(EMovementStates::WALKING);
+}
+
+void ALazerTagCharacter::Server_StopSprint_Implementation()
+{
+	if (GetLocalRole() == ROLE_Authority)
+	{
+		b_sprintKeyDown = false;
+	}
 }
 
 void ALazerTagCharacter::SetMovementState(EMovementStates newState)
 {
-	switch (CurrentMoveState)
+	Server_SetMovementState(newState);
+}
+
+void ALazerTagCharacter::Server_SetMovementState_Implementation(EMovementStates newState)
+{
+	if (GetLocalRole() == ROLE_Authority)
 	{
-		case EMovementStates::WALKING:
+		switch (CurrentMoveState)
 		{
-			
-			if (newState == EMovementStates::SPRINTING && CanSprint())
+			case EMovementStates::WALKING:
 			{
-				CurrentMoveState = newState;
+
+				if (newState == EMovementStates::SPRINTING && CanSprint())
+				{
+					CurrentMoveState = newState;
+				}
+				else if (newState == EMovementStates::CROUCHING)
+				{
+					BeginCrouch();
+					CurrentMoveState = newState;
+				}
+
+				break;
 			}
-			else if (newState == EMovementStates::CROUCHING)
+			case EMovementStates::SPRINTING:
 			{
-				BeginCrouch();
-				CurrentMoveState = newState;
+				if (newState == EMovementStates::CROUCHING && !b_isWallRunning)
+				{
+					CurrentMoveState = EMovementStates::SLIDING;
+					BeginCrouch();
+					BeginSlide();
+				}
+				else if (newState == EMovementStates::WALKING)
+					CurrentMoveState = newState;
+				break;
 			}
-				
-			break;
-		}
-		case EMovementStates::SPRINTING:
-		{
-			if (newState == EMovementStates::CROUCHING && !b_isWallRunning)
+			case EMovementStates::CROUCHING:
 			{
-				CurrentMoveState = EMovementStates::SLIDING;
-				BeginCrouch();
-				BeginSlide();
-			}
-			else if (newState == EMovementStates::WALKING)
-				CurrentMoveState = newState;
-			break;
-		}
-		case EMovementStates::CROUCHING:
-		{
-			if (newState == EMovementStates::SPRINTING && CanSprint())
-			{
-				EndCrouch();
-				CurrentMoveState = newState;
-			}
-			else if (newState == EMovementStates::WALKING && CanStand())
-			{
-				EndCrouch();
-				CurrentMoveState = newState;
-			}
-				
-			break;
-		}
-		case EMovementStates::SLIDING:
-		{
-			if (newState == EMovementStates::WALKING)
-			{
-				if (CanStand())
+				if (newState == EMovementStates::SPRINTING && CanSprint())
 				{
 					EndCrouch();
 					CurrentMoveState = newState;
 				}
-				else
-					CurrentMoveState = EMovementStates::CROUCHING;
+				else if (newState == EMovementStates::WALKING && CanStand())
+				{
+					EndCrouch();
+					CurrentMoveState = newState;
+				}
 
-				EndSlide();
+				break;
 			}
-			break;
-		}
-	}
+			case EMovementStates::SLIDING:
+			{
+				if (newState == EMovementStates::WALKING)
+				{
+					if (CanStand())
+					{
+						EndCrouch();
+						CurrentMoveState = newState;
+					}
+					else
+						CurrentMoveState = EMovementStates::CROUCHING;
 
-	SetMaxWalkSpeed();
+					EndSlide();
+				}
+				break;
+			}
+		}
+
+		SetMaxWalkSpeed();
+	}
 }
 
 void ALazerTagCharacter::BeginCrouch()
@@ -861,21 +909,27 @@ void ALazerTagCharacter::EndWallRun()
 	m_wallRunTimeline->Stop();
 }
 
+
+
 void ALazerTagCharacter::SetMaxWalkSpeed()
 {
-	switch (CurrentMoveState)
+
+	if (GetLocalRole() == ROLE_Authority)
 	{
-		case EMovementStates::WALKING:
-			m_characterMovement->MaxWalkSpeed = f_walkSpeed;
-			break;
-		case EMovementStates::SPRINTING:
-			m_characterMovement->MaxWalkSpeed = f_sprintSpeed;
-			break;
-		case EMovementStates::CROUCHING:
-			m_characterMovement->MaxWalkSpeed = f_crouchSpeed;
-			break;
-		case EMovementStates::SLIDING:
-			break;
+		switch (CurrentMoveState)
+		{
+			case EMovementStates::WALKING:
+				m_characterMovement->MaxWalkSpeed = f_walkSpeed;
+				break;
+			case EMovementStates::SPRINTING:
+				m_characterMovement->MaxWalkSpeed = f_sprintSpeed;
+				break;
+			case EMovementStates::CROUCHING:
+				m_characterMovement->MaxWalkSpeed = f_crouchSpeed;
+				break;
+			case EMovementStates::SLIDING:
+				break;
+		}
 	}
 }
 
