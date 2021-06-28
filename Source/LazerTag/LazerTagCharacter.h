@@ -120,9 +120,9 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Gameplay)
 	float f_forwardMovement;
 
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Gameplay)
+	UPROPERTY(Replicated, EditAnywhere, BlueprintReadOnly, Category = Gameplay)
 	EMovementStates CurrentMoveState = EMovementStates::WALKING;
-	
+
 	// this state represents whats side the wall is on relative to the player while wall running
 	enum class EWallSide
 	{
@@ -187,6 +187,26 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Timeline")
 	UCurveFloat* fTickCurve;
 
+	UFUNCTION(BlueprintPure, Category = "Shield")
+	int GetRemainingCharges() const;
+
+	/*
+	* This updates the players amount of shield. 
+	* Either adding or removing a charge based on the circumstances
+	* @param delta This is the amount of charges to add/remove
+	*/
+	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "Shield")
+	void UpdateCharges(int delta);
+
+protected:
+
+	// initial shield charges
+	UPROPERTY(Replicated, EditAnywhere, BlueprintReadWrite, Category = "Shield")
+	int i_shieldCharges = 0;
+
+	// max shield charges player can have
+	UPROPERTY(EditAnywhere, Category = "Shield")
+	int i_maxShieldCharges = 2;
 
 private:
 
@@ -205,7 +225,12 @@ private:
 
 	UPROPERTY(Category = Character, EditAnywhere, BlueprintReadWrite, meta = (AllowPrivateAccess = "true"))
 	float f_meshZOffset = 50.0f;
+
+	UPROPERTY( EditAnywhere, Category = "Capsule")
 	float f_standingCapsuleHalfHeight = 96.f;
+
+	UPROPERTY( EditAnywhere, Category = "Capsule" )
+	float f_crouchCapsuleHalfHeight = 55.f;
 
 	/* Rotation Info */
 	float f_camRollRotationOffLeft = 10.f;

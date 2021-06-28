@@ -16,6 +16,7 @@
 #include <string>
 #include "Net/UnrealNetwork.h"
 #include "Pickup.h"
+#include "Shield.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogFPChar, Warning, All);
 
@@ -79,7 +80,7 @@ ALazerTagCharacter::ALazerTagCharacter()
 	_standCollisionParams.AddIgnoredActor(this);
 	
 	// Mesh is the multiplayer mesh that other players can see
-	//Mesh->SetOwnerNoSee(true);
+	GetMesh()->SetOwnerNoSee(true);
 	_standCollisionParams.AddIgnoredComponent(GetMesh());
 
 #if __VR__ == 0
@@ -135,7 +136,10 @@ void ALazerTagCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& O
 {
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 
+	// replicate variables that are marked
 	DOREPLIFETIME(ALazerTagCharacter, pickupSphere);
+	DOREPLIFETIME(ALazerTagCharacter, i_shieldCharges);
+	DOREPLIFETIME(ALazerTagCharacter, CurrentMoveState);
 }
 
 void ALazerTagCharacter::BeginPlay()
@@ -226,6 +230,11 @@ void ALazerTagCharacter::Server_CollectPickup_Implementation()
 
 			if( obj != NULL && !obj->IsPendingKill() && obj->IsActive() )
 			{
+				if (AShield* const shield = Cast<AShield>(obj))
+				{
+					UpdateCharges(shield->chargePerPickup);
+				}
+
 				// collect pickup and deactivate
 				obj->Server_PickedUpBy(this);
 				obj->SetActive(false);
@@ -236,8 +245,9 @@ void ALazerTagCharacter::Server_CollectPickup_Implementation()
 
 void ALazerTagCharacter::CrouchTimelineUpdate(float value)
 {
+	/* REMOVED FOR NOW */
 	// need to reduce the capsule size for the duration of the crouch/slide
-	GetCapsuleComponent()->SetCapsuleHalfHeight(FMath::Lerp(f_standingCapsuleHalfHeight, f_standingCapsuleHalfHeight*f_capsuleHeightScale, value));
+	//GetCapsuleComponent()->SetCapsuleHalfHeight(FMath::Lerp(f_standingCapsuleHalfHeight, f_crouchCapsuleHalfHeight, value));
 	
 	// the mesh needs to be offset as well so it doesn't clip through the floor
 	FVector currentMeshPos = GetMesh()->GetRelativeLocation();
@@ -311,6 +321,34 @@ void ALazerTagCharacter::WallRunUpdate(float value)
 	else
 	{
 		EndWallRun();
+	}
+}
+
+int ALazerTagCharacter::GetRemainingCharges() const
+{
+	return i_shieldCharges;
+}
+
+void ALazerTagCharacter::UpdateCharges(int delta)
+{
+	if (GetLocalRole() == ROLE_Authority)
+	{
+		int res = i_shieldCharges + delta;
+
+		// increase of decrease shield charges
+		if ((res) < 0)
+		{
+			i_shieldCharges = 0;
+		}
+		else if ((res) > i_maxShieldCharges)
+		{
+			i_shieldCharges = i_maxShieldCharges;
+		}
+		else
+		{
+			i_shieldCharges += delta;
+		}
+		
 	}
 }
 
@@ -579,7 +617,7 @@ void ALazerTagCharacter::MoveForward(float Value)
 		// add movement in that direction
 		AddMovementInput(GetActorForwardVector(), Value);
 
-		if (CurrentMoveState == EMovementStates::CROUCHING && CanStand())
+		if (!b_crouchKeyDown && CurrentMoveState == EMovementStates::CROUCHING && CanStand())
 		{
 			EndCrouch();
 
@@ -600,7 +638,7 @@ void ALazerTagCharacter::MoveRight(float Value)
 		// add movement in that direction
 		AddMovementInput(GetActorRightVector(), Value);
 
-		if (CurrentMoveState == EMovementStates::CROUCHING && CanStand())
+		if (!b_crouchKeyDown && CurrentMoveState == EMovementStates::CROUCHING && CanStand())
 		{
 			EndCrouch();
 		}

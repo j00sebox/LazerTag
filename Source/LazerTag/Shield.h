@@ -20,5 +20,8 @@ public:
 
 	UFUNCTION(BlueprintAuthorityOnly, Category = "Pickup")
 	void Server_PickedUpBy(APawn* Pawn) override;
+
+	UPROPERTY(EditAnywhere, Category = "Shield")
+	int chargePerPickup = 1;
 	
 };
