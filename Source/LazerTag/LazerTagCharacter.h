@@ -18,6 +18,7 @@ class USoundBase;
 class UTimelineComponent;
 class UCurveFloat;
 class USphereComponent;
+class USpringArmComponent;
 
 UENUM(blueprinttype)
 enum class EMovementStates : uint8
@@ -66,8 +67,11 @@ class ALazerTagCharacter : public ACharacter
 	UCameraComponent* FirstPersonCameraComponent;
 
 	/** Pickup Sphere */
-	UPROPERTY(Replicated, VisibleAnywhere, BlueprintReadOnly, Category = "Pickup", meta = (AllowPrivateAccess = "true"))
+	UPROPERTY(replicated, visibleAnywhere, blueprintReadOnly, category = "Pickup", meta = (allowPrivateAccess = "true"))
 	USphereComponent* pickupSphere;
+
+	UPROPERTY(visibleAnywhere, blueprintReadWrite, category = Camera, meta = (allowPrivateAccess = "true"))
+	USpringArmComponent* springArm;
 
 	/** Motion controller (right hand) */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, meta = (AllowPrivateAccess = "true"))
@@ -125,17 +129,21 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Gameplay)
 	uint8 bUsingMotionControllers : 1;
 
-	UPROPERTY(editanywhere, blueprintreadonly, category = Gameplay)
+	UPROPERTY(editAnywhere, blueprintReadonly, category = Gameplay)
 	float f_forwardMovement;
 
-	UPROPERTY(replicated, editanywhere, blueprintreadonly, category = Gameplay)
+	UPROPERTY(replicated, editAnywhere, blueprintReadonly, category = Gameplay)
 	EMovementStates CurrentMoveState = EMovementStates::WALKING;
 
 	// starts the crouching timeline
+	UFUNCTION(reliable, client)
 	void BeginCrouch();
+	void BeginCrouch_Implementation();
 
 	// reverses crouching timeline
+	UFUNCTION(reliable, client)
 	void EndCrouch();
+	void EndCrouch_Implementation();
 
 	void BeginSlide();
 
@@ -148,9 +156,6 @@ public:
 	// delegate invoked by the OnComponentHit event
 	FScriptDelegate OnCapsuleHit;
 
-	// delegate that is binded with CrouchTimelineUpdate
-	FOnTimelineFloat CrouchInterp;
-
 	// delegate that is used to tilt the camera
 	FOnTimelineFloat CamInterp;
 
@@ -159,36 +164,35 @@ public:
 
 	// delegate that is binded with WallRunUpdate
 	FOnTimelineFloat WallRunInterp;
-
-
-	UFUNCTION()
+	
 	/* event triggers everytime player comes into contact with a surface*/
+	//UFUNCTION(reliable, server)
 	void CapsuleHit(const FHitResult& Hit);
+	//void CapsuleHit_Implementation(const FHitResult& Hit);
 
-	UFUNCTION()
-	/* perform crouching events such as lowering camera */
-	void CrouchTimelineUpdate(float value);
-
-	UFUNCTION()
 	/* event that gradually tilts camera while wall running or sliding */
+	UFUNCTION(reliable, client)
 	void CamTiltTimelineUpdate(float value);
+	void CamTiltTimelineUpdate_Implementation(float value);
 
-	UFUNCTION()
 	/* slide events */
+	UFUNCTION(reliable, server)
 	void SlideTimelineUpdate(float value);
+	void SlideTimelineUpdate_Implementation(float value);
 
-	UFUNCTION()
 	/* wall running events */
+	UFUNCTION(reliable, server)
 	void WallRunUpdate(float value);
+	void WallRunUpdate_Implementation(float value);
 
 	// curves used for the timelines
-	UPROPERTY(editanywhere, category = "Timeline")
+	UPROPERTY(editAnywhere, category = "Timeline")
 	UCurveFloat* fCrouchCurve;
 
-	UPROPERTY(editanywhere, category = "Timeline")
+	UPROPERTY(editAnywhere, category = "Timeline")
 	UCurveFloat* fTickCurve;
 
-	UFUNCTION(blueprintpure, category = "Shield")
+	UFUNCTION(blueprintPure, category = "Shield")
 	int GetRemainingCharges() const;
 
 	/*
@@ -196,17 +200,17 @@ public:
 	* Either adding or removing a charge based on the circumstances
 	* @param delta This is the amount of charges to add/remove
 	*/
-	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "Shield")
+	UFUNCTION(blueprintCallable, blueprintAuthorityOnly, category = "Shield")
 	void UpdateCharges(int delta);
 
 protected:
 
 	// initial shield charges
-	UPROPERTY(replicated, editanywhere, blueprintreadwrite, category = "Shield")
+	UPROPERTY(replicated, editAnywhere, blueprintReadWrite, category = "Shield")
 	int i_shieldCharges = 0;
 
 	// max shield charges player can have
-	UPROPERTY(EditAnywhere, Category = "Shield")
+	UPROPERTY(editAnywhere, category = "Shield")
 	int i_maxShieldCharges = 2;
 
 	UPROPERTY( replicated )
@@ -223,15 +227,17 @@ protected:
 
 	float f_sideMovement;
 	float f_capsuleHeightScale = .5f;
+
+	UPROPERTY(editAnywhere, blueprintReadWrite, category = Camera, meta = (allowPrivateAccess = "true"))
 	float f_cameraZOffset = 64.f;
 
-	UPROPERTY( editanywhere, blueprintreadwrite, category = Character, meta = (allowprivateaccess = "true"))
+	UPROPERTY( editAnywhere, blueprintReadWrite, category = Character, meta = (allowPrivateAccess = "true"))
 	float f_meshZOffset = 50.0f;
 
-	UPROPERTY(editanywhere, category = "Capsule")
+	UPROPERTY(editAnywhere, category = "Capsule")
 	float f_standingCapsuleHalfHeight = 96.f;
 
-	UPROPERTY(editanywhere, category = "Capsule")
+	UPROPERTY(editAnywhere, category = "Capsule")
 	float f_crouchCapsuleHalfHeight = 55.f;
 
 	/* Rotation Info */
@@ -256,26 +262,28 @@ protected:
 	UPROPERTY(replicated)
 	EWallSide CurrentSide;
 
+	UPROPERTY(replicated, visibleAnywhere, blueprintReadOnly, category = "Camera")
+	float f_camStartZ;
+
+	UPROPERTY(editAnywhere, category = "Camera")
+	float f_camCrocuhZ = 30.f;
+
+	UPROPERTY(replicated, visibleAnywhere, category = "Mesh")
+	float f_meshStartZ;
+
+	UPROPERTY(editAnywhere, category = "Mesh")
+	float f_meshCrouchZOff = 50.f;
+
 	/* Timelines */
-	UTimelineComponent* m_crouchTimeline;
 	UTimelineComponent* m_slideTimeline;
 	UTimelineComponent* m_camTiltTimeline;
 	UTimelineComponent* m_wallRunTimeline;
-
-	UPROPERTY()
-	FVector m_camStartVec;
-
-	UPROPERTY()
-	FVector m_camEndVec;
-
-	FVector m_meshStartVec;
-	FVector m_meshEndVec;
 
 	UCharacterMovementComponent* m_characterMovement;
 
 	FCollisionQueryParams _standCollisionParams;
 
-	UPROPERTY(replicated, visibleanywhere, blueprintreadonly, category = "Pickup", meta = ( allowprivateaccess = "true" ) )
+	UPROPERTY(replicated, visibleAnywhere, blueprintReadonly, category = "Pickup", meta = ( allowPrivateAccess = "true" ) )
 	float f_pickupSphereRadius;
 	
 	/** Fires a projectile. */

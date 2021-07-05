@@ -9,6 +9,7 @@
 #include "Components/InputComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/InputSettings.h"
+#include "GameFramework/SpringArmComponent.h"
 #include "HeadMountedDisplayFunctionLibrary.h"
 #include "Kismet/GameplayStatics.h"
 #include "MotionControllerComponent.h"
@@ -32,13 +33,11 @@ ALazerTagCharacter::ALazerTagCharacter()
 	m_characterMovement->MaxWalkSpeed = f_walkSpeed;
 
 	// timelines are used for certain state transitions
-	m_crouchTimeline = CreateDefaultSubobject<UTimelineComponent>(TEXT("CrouchTimeline"));
 	m_camTiltTimeline = CreateDefaultSubobject<UTimelineComponent>(TEXT("CamTiltTimeline"));
 	m_slideTimeline = CreateDefaultSubobject<UTimelineComponent>(TEXT("SlideTimeline"));
 	m_wallRunTimeline = CreateDefaultSubobject<UTimelineComponent>(TEXT("WallRunTimeline"));
 
 	// bind delegates to the timeline update functions
-	CrouchInterp.BindUFunction(this, FName("CrouchTimelineUpdate"));
 	CamInterp.BindUFunction(this, FName("CamTiltTimelineUpdate"));
 	SlideInterp.BindUFunction(this, FName("SlideTimelineUpdate"));
 	WallRunInterp.BindUFunction(this, FName("WallRunUpdate"));
@@ -54,11 +53,16 @@ ALazerTagCharacter::ALazerTagCharacter()
 	BaseTurnRate = 45.f;
 	BaseLookUpRate = 45.f;
 
+	springArm = CreateDefaultSubobject<USpringArmComponent>(TEXT("CamerSpringArm"));
+	springArm->SetupAttachment(GetCapsuleComponent());
+	springArm->bUsePawnControlRotation = true;
+	springArm->bEnableCameraLag = true;
+
 	// Create a CameraComponent	
 	FirstPersonCameraComponent = CreateDefaultSubobject<UCameraComponent>(TEXT("FirstPersonCamera"));
-	FirstPersonCameraComponent->SetupAttachment(GetCapsuleComponent());
+	FirstPersonCameraComponent->SetupAttachment(springArm);
 	FirstPersonCameraComponent->SetRelativeLocation(FVector(-39.56f, 1.75f, f_cameraZOffset)); // Position the camera
-	FirstPersonCameraComponent->bUsePawnControlRotation = true;
+	FirstPersonCameraComponent->bUsePawnControlRotation = false;
 
 	// set base sphere radius
 	f_pickupSphereRadius = 200.f;
@@ -131,6 +135,8 @@ ALazerTagCharacter::ALazerTagCharacter()
 	bUsingMotionControllers = true;
 #endif
 
+	
+
 }
 
 void ALazerTagCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
@@ -145,6 +151,8 @@ void ALazerTagCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& O
 	DOREPLIFETIME(ALazerTagCharacter, b_isWallRunning);
 	DOREPLIFETIME(ALazerTagCharacter, b_crouchKeyDown);
 	DOREPLIFETIME(ALazerTagCharacter, b_sprintKeyDown);
+	DOREPLIFETIME_CONDITION(ALazerTagCharacter, f_camStartZ, COND_InitialOnly);
+	DOREPLIFETIME_CONDITION(ALazerTagCharacter, f_meshStartZ, COND_InitialOnly);
 }
 
 void ALazerTagCharacter::BeginPlay()
@@ -152,23 +160,15 @@ void ALazerTagCharacter::BeginPlay()
 	// Call the base class  
 	Super::BeginPlay();
 
+	if (__SERVER__)
+	{
+		f_camStartZ = springArm->GetRelativeLocation().Z;
+	}
+
 	// check if curve asset is valid
 	if (fCrouchCurve)
 	{
 		/* set up crouch timeline */
-
-		// adds the curve to the timeline and hooks it up to the delegate
-		m_crouchTimeline->AddInterpFloat(fCrouchCurve, CrouchInterp, FName("CrouchPro"));
-
-		m_camStartVec = FirstPersonCameraComponent->GetRelativeLocation();
-		m_meshStartVec = GetMesh()->GetRelativeLocation();
-
-		m_camEndVec = FVector(m_camStartVec.X, m_camEndVec.Y, m_camStartVec.Z - f_cameraZOffset);
-		m_meshEndVec = FVector(m_meshStartVec.X, m_meshStartVec.Y, m_meshStartVec.Z + f_meshZOffset);
-
-		// general settings for timeline
-		m_crouchTimeline->SetLooping(false);
-		m_crouchTimeline->SetIgnoreTimeDilation(true);
 
 		m_camTiltTimeline->AddInterpFloat(fCrouchCurve, CamInterp, FName("TiltPro"));
 
@@ -248,22 +248,9 @@ void ALazerTagCharacter::Server_CollectPickup_Implementation()
 	}
 }
 
-void ALazerTagCharacter::CrouchTimelineUpdate(float value)
-{
-	/* REMOVED FOR NOW */
-	// need to reduce the capsule size for the duration of the crouch/slide
-	//GetCapsuleComponent()->SetCapsuleHalfHeight(FMath::Lerp(f_standingCapsuleHalfHeight, f_crouchCapsuleHalfHeight, value));
-	
-	// the mesh needs to be offset as well so it doesn't clip through the floor
-	FVector currentMeshPos = GetMesh()->GetRelativeLocation();
-	GetMesh()->SetRelativeLocation(FVector(currentMeshPos.X, currentMeshPos.Y, FMath::Lerp(m_meshStartVec.Z, m_meshEndVec.Z, value)));
+/******************************TIMELINE FUNCTIONS******************************/
 
-	// lower camera view
-	FVector currentCamPos = FirstPersonCameraComponent->GetRelativeLocation();
-	FirstPersonCameraComponent->SetRelativeLocation(FVector(currentCamPos.X, currentCamPos.Y, FMath::Lerp(m_camStartVec.Z, m_camEndVec.Z, value)));
-}
-
-void ALazerTagCharacter::CamTiltTimelineUpdate(float value)
+void ALazerTagCharacter::CamTiltTimelineUpdate_Implementation(float value)
 {
 	AController* controller = GetController();
 
@@ -281,7 +268,7 @@ void ALazerTagCharacter::CamTiltTimelineUpdate(float value)
 	controller->SetControlRotation(currentCamRot);
 }
 
-void ALazerTagCharacter::WallRunUpdate(float value)
+void ALazerTagCharacter::WallRunUpdate_Implementation(float value)
 {
 
 	FHitResult hit;
@@ -329,6 +316,32 @@ void ALazerTagCharacter::WallRunUpdate(float value)
 	}
 }
 
+void ALazerTagCharacter::SlideTimelineUpdate_Implementation(float value)
+{
+	FVector force = CalculateFloorInfluence();
+
+	m_characterMovement->AddForce(force * 150000);
+
+	FVector vel = GetVelocity();
+
+	float debug = vel.Size();
+
+	if (vel.Size() > f_sprintSpeed)
+	{
+		vel.Normalize();
+
+		m_characterMovement->Velocity = (vel * f_sprintSpeed);
+	}
+	else if (vel.Size() < f_crouchSpeed)
+	{
+		m_characterMovement->Velocity = FVector(0, 0, 0);
+
+		SetMovementState(EMovementStates::WALKING);
+	}
+}
+
+/******************************TIMELINE FUNCTIONS END******************************/
+
 int ALazerTagCharacter::GetRemainingCharges() const
 {
 	return i_shieldCharges;
@@ -356,34 +369,6 @@ void ALazerTagCharacter::UpdateCharges(int delta)
 		
 	}
 }
-
-void ALazerTagCharacter::SlideTimelineUpdate(float value)
-{
-	FVector force = CalculateFloorInfluence();
-
-	m_characterMovement->AddForce(force * 150000);
-
-	FVector vel = GetVelocity();
-
-	float debug = vel.Size();
-
-	if (vel.Size() > f_sprintSpeed)
-	{
-		vel.Normalize();
-
-		m_characterMovement->Velocity = (vel * f_sprintSpeed);
-	}
-	else if (vel.Size() < f_crouchSpeed)
-	{
-		m_characterMovement->Velocity = FVector(0, 0, 0);
-		
-		SetMovementState(EMovementStates::WALKING);
-	}
-}
-
-
-//////////////////////////////////////////////////////////////////////////
-// Input
 
 bool ALazerTagCharacter::OnWall()
 {
@@ -521,6 +506,8 @@ bool ALazerTagCharacter::CanWallRun()
 
 	return (f_forwardMovement > 0.1f) && correctKey;
 }
+
+/******************************INPUT******************************/
 
 void ALazerTagCharacter::SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent)
 {
@@ -833,14 +820,16 @@ void ALazerTagCharacter::Server_SetMovementState_Implementation(EMovementStates 
 	}
 }
 
-void ALazerTagCharacter::BeginCrouch()
+void ALazerTagCharacter::BeginCrouch_Implementation()
 {
-	m_crouchTimeline->Play();
+	GetCharacterMovement()->bWantsToCrouch = true;
+	GetCharacterMovement()->Crouch(true);
 }
 
-void ALazerTagCharacter::EndCrouch()
+void ALazerTagCharacter::EndCrouch_Implementation()
 {
-	m_crouchTimeline->Reverse();
+	GetCharacterMovement()->bWantsToCrouch = false;
+	GetCharacterMovement()->UnCrouch(true);
 }
 
 void ALazerTagCharacter::BeginSlide()
@@ -979,3 +968,5 @@ bool ALazerTagCharacter::CanStand()
 
 	return !GetWorld()->LineTraceSingleByChannel(hit, start, end, ECC_WorldStatic, _standCollisionParams);
 }
+
+/******************************INPUT END******************************/
