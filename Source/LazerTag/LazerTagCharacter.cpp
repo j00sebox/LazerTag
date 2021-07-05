@@ -135,8 +135,6 @@ ALazerTagCharacter::ALazerTagCharacter()
 	bUsingMotionControllers = true;
 #endif
 
-	
-
 }
 
 void ALazerTagCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
@@ -152,7 +150,9 @@ void ALazerTagCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& O
 	DOREPLIFETIME(ALazerTagCharacter, b_crouchKeyDown);
 	DOREPLIFETIME(ALazerTagCharacter, b_sprintKeyDown);
 	DOREPLIFETIME_CONDITION(ALazerTagCharacter, f_camStartZ, COND_InitialOnly);
-	DOREPLIFETIME_CONDITION(ALazerTagCharacter, f_meshStartZ, COND_InitialOnly);
+	DOREPLIFETIME_CONDITION(ALazerTagCharacter, f_camRollRotation, COND_OwnerOnly);
+	DOREPLIFETIME_CONDITION(ALazerTagCharacter, f_sideMovement, COND_OwnerOnly);
+	DOREPLIFETIME(ALazerTagCharacter, CurrentSide);
 }
 
 void ALazerTagCharacter::BeginPlay()
@@ -250,7 +250,7 @@ void ALazerTagCharacter::Server_CollectPickup_Implementation()
 
 /******************************TIMELINE FUNCTIONS******************************/
 
-void ALazerTagCharacter::CamTiltTimelineUpdate_Implementation(float value)
+void ALazerTagCharacter::CamTiltTimelineUpdate(float value)
 {
 	AController* controller = GetController();
 
@@ -316,7 +316,7 @@ void ALazerTagCharacter::WallRunUpdate_Implementation(float value)
 	}
 }
 
-void ALazerTagCharacter::SlideTimelineUpdate_Implementation(float value)
+void ALazerTagCharacter::SlideTimelineUpdate(float value)
 {
 	FVector force = CalculateFloorInfluence();
 
@@ -495,6 +495,8 @@ bool ALazerTagCharacter::CanWallRun()
 {
   	bool correctKey = false;
 
+	UE_LOG(LogTemp, Warning, TEXT("%f"), f_sideMovement);
+
 	if (f_sideMovement > 0.1f && CurrentSide == EWallSide::RIGHT)
 	{
 		correctKey = true;
@@ -624,6 +626,8 @@ void ALazerTagCharacter::MoveForward(float Value)
 void ALazerTagCharacter::MoveRight(float Value)
 {
 	f_sideMovement = Value;
+
+	UE_LOG(LogTemp, Warning, TEXT("%f"), f_sideMovement);
 
 	if (Value != 0.0f && CurrentMoveState != EMovementStates::SLIDING && !b_isWallRunning)
 	{
@@ -823,13 +827,11 @@ void ALazerTagCharacter::Server_SetMovementState_Implementation(EMovementStates 
 void ALazerTagCharacter::BeginCrouch_Implementation()
 {
 	GetCharacterMovement()->bWantsToCrouch = true;
-	GetCharacterMovement()->Crouch(true);
 }
 
 void ALazerTagCharacter::EndCrouch_Implementation()
 {
 	GetCharacterMovement()->bWantsToCrouch = false;
-	GetCharacterMovement()->UnCrouch(true);
 }
 
 void ALazerTagCharacter::BeginSlide()
@@ -842,8 +844,11 @@ void ALazerTagCharacter::BeginSlide()
 
 	m_slideDir = GetActorForwardVector();
 
+	OnCamTilt();
+
 	m_slideTimeline->Play();
-	m_camTiltTimeline->Play();
+	
+	//m_camTiltTimeline->Play();
 }
 
 void ALazerTagCharacter::EndSlide()
@@ -852,8 +857,19 @@ void ALazerTagCharacter::EndSlide()
 
 	m_characterMovement->BrakingDecelerationWalking = 2048.f;
 
+	OnCamUnTilt();
+
 	m_slideTimeline->Stop();
-	m_camTiltTimeline->Reverse();
+}
+
+void ALazerTagCharacter::OnCamTilt_Implementation()
+{
+	CamTiltStart();
+}
+
+void ALazerTagCharacter::OnCamUnTilt_Implementation()
+{
+	CamTiltReverse();
 }
 
 void ALazerTagCharacter::BeginWallRun()
@@ -880,7 +896,8 @@ void ALazerTagCharacter::BeginWallRun()
 
 	SetMovementState(EMovementStates::SPRINTING);
 
-	m_camTiltTimeline->Play();
+	CamTiltStart();
+
 	m_wallRunTimeline->Play();
 }
 
@@ -894,7 +911,7 @@ void ALazerTagCharacter::EndWallRun()
 
 	b_isWallRunning = false;
 
-	m_camTiltTimeline->Reverse();
+	CamTiltReverse();
 	m_wallRunTimeline->Stop();
 }
 

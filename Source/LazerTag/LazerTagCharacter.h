@@ -149,6 +149,20 @@ public:
 
 	void EndSlide();
 
+	UFUNCTION(reliable, client)
+	void OnCamTilt();
+	void OnCamTilt_Implementation();
+
+	UFUNCTION(blueprintImplementableEvent)
+	void CamTiltStart();
+
+	UFUNCTION(reliable, client)
+	void OnCamUnTilt();
+	void OnCamUnTilt_Implementation();
+
+	UFUNCTION(blueprintImplementableEvent)
+	void CamTiltReverse();
+
 	void BeginWallRun();
 
 	void EndWallRun();
@@ -167,18 +181,19 @@ public:
 	
 	/* event triggers everytime player comes into contact with a surface*/
 	//UFUNCTION(reliable, server)
+	UFUNCTION()
 	void CapsuleHit(const FHitResult& Hit);
 	//void CapsuleHit_Implementation(const FHitResult& Hit);
 
 	/* event that gradually tilts camera while wall running or sliding */
-	UFUNCTION(reliable, client)
+	UFUNCTION()
 	void CamTiltTimelineUpdate(float value);
-	void CamTiltTimelineUpdate_Implementation(float value);
+	//void CamTiltTimelineUpdate_Implementation(float value);
 
 	/* slide events */
-	UFUNCTION(reliable, server)
+	UFUNCTION()
 	void SlideTimelineUpdate(float value);
-	void SlideTimelineUpdate_Implementation(float value);
+	//void SlideTimelineUpdate_Implementation(float value);
 
 	/* wall running events */
 	UFUNCTION(reliable, server)
@@ -213,10 +228,10 @@ protected:
 	UPROPERTY(editAnywhere, category = "Shield")
 	int i_maxShieldCharges = 2;
 
-	UPROPERTY( replicated )
+	UPROPERTY(replicated)
 	bool b_crouchKeyDown;
 
-	UPROPERTY( replicated )
+	UPROPERTY(replicated)
 	bool b_sprintKeyDown;
 	
 	/* General Movement */
@@ -225,8 +240,8 @@ protected:
 	const float f_crouchSpeed = 300.f;
 	FVector m_slideDir;
 
+	UPROPERTY(replicated)
 	float f_sideMovement;
-	float f_capsuleHeightScale = .5f;
 
 	UPROPERTY(editAnywhere, blueprintReadWrite, category = Camera, meta = (allowPrivateAccess = "true"))
 	float f_cameraZOffset = 64.f;
@@ -243,7 +258,10 @@ protected:
 	/* Rotation Info */
 	float f_camRollRotationOffLeft = 10.f;
 	float f_camRollRotationOffRight = -10.f;
+
+	UPROPERTY(replicated, visibleAnywhere, blueprintReadOnly, category = Camera, meta = (allowPrivateAccess = "true"))
 	float f_camRollRotation;
+
 	float f_meshPitchRotationOffLeft = 35.f;
 	float f_meshPitchRotationOffRight = -35.f;
 	float f_meshPitchRotation;
