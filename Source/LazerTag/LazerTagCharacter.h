@@ -129,9 +129,6 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Gameplay)
 	uint8 bUsingMotionControllers : 1;
 
-	UPROPERTY(editAnywhere, blueprintReadonly, category = Gameplay)
-	float f_forwardMovement;
-
 	UPROPERTY(replicated, editAnywhere, blueprintReadonly, category = Gameplay)
 	EMovementStates CurrentMoveState = EMovementStates::WALKING;
 
@@ -163,9 +160,23 @@ public:
 	UFUNCTION(blueprintImplementableEvent)
 	void CamTiltReverse();
 
+	UFUNCTION()
 	void BeginWallRun();
 
+	UFUNCTION(reliable, server)
+	void Server_EnableWallRun();
+	void Server_EnableWallRun_Implementation();
+
+	UFUNCTION(reliable, server)
+	void Server_UpdateVelocity(FVector dir);
+	void Server_UpdateVelocity_Implementation(FVector dir);
+
+	UFUNCTION()
 	void EndWallRun();
+
+	UFUNCTION(reliable, server) 
+	void Server_DisableWallRun();
+	void Server_DisableWallRun_Implementation();
 
 	// delegate invoked by the OnComponentHit event
 	FScriptDelegate OnCapsuleHit;
@@ -180,25 +191,20 @@ public:
 	FOnTimelineFloat WallRunInterp;
 	
 	/* event triggers everytime player comes into contact with a surface*/
-	//UFUNCTION(reliable, server)
 	UFUNCTION()
 	void CapsuleHit(const FHitResult& Hit);
-	//void CapsuleHit_Implementation(const FHitResult& Hit);
 
 	/* event that gradually tilts camera while wall running or sliding */
 	UFUNCTION()
 	void CamTiltTimelineUpdate(float value);
-	//void CamTiltTimelineUpdate_Implementation(float value);
 
 	/* slide events */
 	UFUNCTION()
 	void SlideTimelineUpdate(float value);
-	//void SlideTimelineUpdate_Implementation(float value);
 
 	/* wall running events */
-	UFUNCTION(reliable, server)
+	UFUNCTION()
 	void WallRunUpdate(float value);
-	void WallRunUpdate_Implementation(float value);
 
 	// curves used for the timelines
 	UPROPERTY(editAnywhere, category = "Timeline")
@@ -240,8 +246,11 @@ protected:
 	const float f_crouchSpeed = 300.f;
 	FVector m_slideDir;
 
-	UPROPERTY(replicated)
+	UPROPERTY()
 	float f_sideMovement;
+
+	UPROPERTY()
+	float f_forwardMovement;
 
 	UPROPERTY(editAnywhere, blueprintReadWrite, category = Camera, meta = (allowPrivateAccess = "true"))
 	float f_cameraZOffset = 64.f;
@@ -444,6 +453,7 @@ protected:
 	* @returns bool - true: player is holding down correct keys and can start/continue wall running
 	*				  false: player is not holding down proper keys and wall running should be stopped
 	*/
+	UFUNCTION()
 	bool CanWallRun();
 	
 protected:

@@ -151,7 +151,6 @@ void ALazerTagCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& O
 	DOREPLIFETIME(ALazerTagCharacter, b_sprintKeyDown);
 	DOREPLIFETIME_CONDITION(ALazerTagCharacter, f_camStartZ, COND_InitialOnly);
 	DOREPLIFETIME_CONDITION(ALazerTagCharacter, f_camRollRotation, COND_OwnerOnly);
-	DOREPLIFETIME_CONDITION(ALazerTagCharacter, f_sideMovement, COND_OwnerOnly);
 	DOREPLIFETIME(ALazerTagCharacter, CurrentSide);
 }
 
@@ -268,13 +267,13 @@ void ALazerTagCharacter::CamTiltTimelineUpdate(float value)
 	controller->SetControlRotation(currentCamRot);
 }
 
-void ALazerTagCharacter::WallRunUpdate_Implementation(float value)
+void ALazerTagCharacter::WallRunUpdate(float value)
 {
 
 	FHitResult hit;
 
 	// while the player can still wall run
-	if (CanWallRun())
+  	if (CanWallRun())
 	{
 		FVector start = GetActorLocation();
 
@@ -293,16 +292,16 @@ void ALazerTagCharacter::WallRunUpdate_Implementation(float value)
 
 		// if there is no hit then the player is no longer on a wall 
 		if(!GetWorld()->LineTraceSingleByChannel(hit, start, end, ECC_WorldStatic, _standCollisionParams))
-			EndWallRun();
+ 			EndWallRun();
 		else
 		{
 			EWallSide prevWallSide = CurrentSide;
 
-			m_wallRunDir = FindWallRunDir(hit.ImpactNormal);
+  			m_wallRunDir = FindWallRunDir(hit.ImpactNormal);
 
 			if (prevWallSide == CurrentSide)
 			{
-				m_characterMovement->Velocity = FVector(m_wallRunDir.X, m_wallRunDir.Y, 0) * m_characterMovement->GetModifiedMaxSpeed();
+				Server_UpdateVelocity(m_wallRunDir);
 			}
 			else
 			{
@@ -495,8 +494,6 @@ bool ALazerTagCharacter::CanWallRun()
 {
   	bool correctKey = false;
 
-	UE_LOG(LogTemp, Warning, TEXT("%f"), f_sideMovement);
-
 	if (f_sideMovement > 0.1f && CurrentSide == EWallSide::RIGHT)
 	{
 		correctKey = true;
@@ -603,9 +600,9 @@ void ALazerTagCharacter::OnResetVR()
 
 
 void ALazerTagCharacter::MoveForward(float Value)
-{
+{	
 	f_forwardMovement = Value;
-
+	
 	if (Value != 0.0f && CurrentMoveState != EMovementStates::SLIDING)
 	{
 		// add movement in that direction
@@ -626,8 +623,6 @@ void ALazerTagCharacter::MoveForward(float Value)
 void ALazerTagCharacter::MoveRight(float Value)
 {
 	f_sideMovement = Value;
-
-	UE_LOG(LogTemp, Warning, TEXT("%f"), f_sideMovement);
 
 	if (Value != 0.0f && CurrentMoveState != EMovementStates::SLIDING && !b_isWallRunning)
 	{
@@ -874,13 +869,7 @@ void ALazerTagCharacter::OnCamUnTilt_Implementation()
 
 void ALazerTagCharacter::BeginWallRun()
 {
-	m_characterMovement->AirControl = 1.f;
-
-	m_characterMovement->GravityScale = 0.f;
-
-	m_characterMovement->SetPlaneConstraintNormal(FVector(0, 0, 1.f));
-
-	b_isWallRunning = true;
+	Server_EnableWallRun();
 
 	if (CurrentSide == EWallSide::LEFT)
 	{
@@ -892,7 +881,6 @@ void ALazerTagCharacter::BeginWallRun()
 		f_camRollRotation = f_camRollRotationOffRight;
 		f_meshPitchRotation = f_meshPitchRotationOffRight;
 	}
-		
 
 	SetMovementState(EMovementStates::SPRINTING);
 
@@ -901,7 +889,31 @@ void ALazerTagCharacter::BeginWallRun()
 	m_wallRunTimeline->Play();
 }
 
+void ALazerTagCharacter::Server_EnableWallRun_Implementation()
+{
+	m_characterMovement->AirControl = 1.f;
+
+	m_characterMovement->GravityScale = 0.f;
+
+	m_characterMovement->SetPlaneConstraintNormal(FVector(0, 0, 1.f));
+
+	b_isWallRunning = true;
+}
+
+void ALazerTagCharacter::Server_UpdateVelocity_Implementation(FVector dir)
+{
+	m_characterMovement->Velocity = FVector(dir.X, dir.Y, 0) * m_characterMovement->GetModifiedMaxSpeed();
+}
+
 void ALazerTagCharacter::EndWallRun()
+{
+	Server_DisableWallRun();
+
+	CamTiltReverse();
+	m_wallRunTimeline->Stop();
+}
+
+void ALazerTagCharacter::Server_DisableWallRun_Implementation()
 {
 	m_characterMovement->AirControl = .05f;
 
@@ -910,12 +922,7 @@ void ALazerTagCharacter::EndWallRun()
 	m_characterMovement->SetPlaneConstraintNormal(FVector(0, 0, 0));
 
 	b_isWallRunning = false;
-
-	CamTiltReverse();
-	m_wallRunTimeline->Stop();
 }
-
-
 
 void ALazerTagCharacter::SetMaxWalkSpeed()
 {
