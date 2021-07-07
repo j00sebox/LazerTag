@@ -224,7 +224,16 @@ public:
 	UFUNCTION(blueprintCallable, blueprintAuthorityOnly, category = "Shield")
 	void UpdateCharges(int delta);
 
+	UFUNCTION(blueprintPure, category = "Score")
+	int GetCurrentScore() const;
+
+	UFUNCTION(blueprintCallable, blueprintAuthorityOnly, category = "Score")
+	void UpdateScore(int delta);
+
 protected:
+
+	UPROPERTY(replicated, visibleAnywhere, blueprintReadOnly, category = "Score")
+	int i_score = 0;
 
 	// initial shield charges
 	UPROPERTY(replicated, editAnywhere, blueprintReadWrite, category = "Shield")
@@ -314,7 +323,14 @@ protected:
 	float f_pickupSphereRadius;
 	
 	/** Fires a projectile. */
+	UFUNCTION(reliable, server)
 	void OnFire();
+	void OnFire_Implementation();
+
+	/* handles client side event such as  first person shooting animation */
+	UFUNCTION(reliable, client)
+	void Client_OnFire();
+	void Client_OnFire_Implementation();
 
 	/** Resets HMD orientation and position in VR. */
 	void OnResetVR();

@@ -152,6 +152,7 @@ void ALazerTagCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& O
 	DOREPLIFETIME_CONDITION(ALazerTagCharacter, f_camStartZ, COND_InitialOnly);
 	DOREPLIFETIME_CONDITION(ALazerTagCharacter, f_camRollRotation, COND_OwnerOnly);
 	DOREPLIFETIME(ALazerTagCharacter, CurrentSide);
+	DOREPLIFETIME(ALazerTagCharacter, i_score);
 }
 
 void ALazerTagCharacter::BeginPlay()
@@ -348,11 +349,11 @@ int ALazerTagCharacter::GetRemainingCharges() const
 
 void ALazerTagCharacter::UpdateCharges(int delta)
 {
-	if (GetLocalRole() == ROLE_Authority)
+	if (__SERVER__)
 	{
 		int res = i_shieldCharges + delta;
 
-		// increase of decrease shield charges
+		// increase or decrease shield charges
 		if ((res) < 0)
 		{
 			i_shieldCharges = 0;
@@ -366,6 +367,19 @@ void ALazerTagCharacter::UpdateCharges(int delta)
 			i_shieldCharges += delta;
 		}
 		
+	}
+}
+
+int ALazerTagCharacter::GetCurrentScore() const
+{
+	return i_score;
+}
+
+void ALazerTagCharacter::UpdateScore(int delta)
+{
+	if (__SERVER__)
+	{
+		i_score += delta;
 	}
 }
 
@@ -545,7 +559,7 @@ void ALazerTagCharacter::SetupPlayerInputComponent(class UInputComponent* Player
 
 }
 
-void ALazerTagCharacter::OnFire()
+void ALazerTagCharacter::OnFire_Implementation()
 {
 	// try and fire a projectile
 	if (ProjectileClass != nullptr)
@@ -570,11 +584,22 @@ void ALazerTagCharacter::OnFire()
 				ActorSpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButDontSpawnIfColliding;
 
 				// spawn the projectile at the muzzle
-				World->SpawnActor<ALazerTagProjectile>(ProjectileClass, SpawnLocation, SpawnRotation, ActorSpawnParams);
+				ALazerTagProjectile* newProjectile = World->SpawnActor<ALazerTagProjectile>(ProjectileClass, SpawnLocation, SpawnRotation, ActorSpawnParams);
+
+				if (newProjectile != nullptr)
+				{
+					newProjectile->SetShooter(this);
+				}
+
 			}
 		}
 	}
 
+	Client_OnFire();
+}
+
+void ALazerTagCharacter::Client_OnFire_Implementation()
+{
 	// try and play the sound if specified
 	if (FireSound != nullptr)
 	{
@@ -592,6 +617,8 @@ void ALazerTagCharacter::OnFire()
 		}
 	}
 }
+
+
 
 void ALazerTagCharacter::OnResetVR()
 {

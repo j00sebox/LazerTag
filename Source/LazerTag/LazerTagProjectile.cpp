@@ -3,6 +3,7 @@
 #include "LazerTagProjectile.h"
 #include "GameFramework/ProjectileMovementComponent.h"
 #include "Components/SphereComponent.h"
+#include "LazerTagCharacter.h"
 
 ALazerTagProjectile::ALazerTagProjectile() 
 {
@@ -34,10 +35,33 @@ ALazerTagProjectile::ALazerTagProjectile()
 void ALazerTagProjectile::OnHit(UPrimitiveComponent* HitComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, FVector NormalImpulse, const FHitResult& Hit)
 {
 	// Only add impulse and destroy projectile if we hit a physics
-	if ((OtherActor != nullptr) && (OtherActor != this) && (OtherComp != nullptr) && OtherComp->IsSimulatingPhysics())
+	if ((OtherActor != nullptr) && (OtherActor != this) && (OtherActor != shooter))
 	{
-		OtherComp->AddImpulseAtLocation(GetVelocity() * 100.0f, GetActorLocation());
+		if ( ALazerTagCharacter* const target = Cast<ALazerTagCharacter>(OtherActor) )
+		{
+			if (target->GetRemainingCharges() > 0)
+			{
+				target->UpdateCharges(-1);
+			}
+			else
+			{
+				if (shooter != nullptr)
+				{
+					shooter->UpdateScore(5);
+				}				
+			}
+		}
 
-		Destroy();
+		if ((OtherComp != nullptr) && OtherComp->IsSimulatingPhysics())
+		{
+			OtherComp->AddImpulseAtLocation(GetVelocity() * 100.0f, GetActorLocation());
+
+			Destroy();
+		}
 	}
+}
+
+void ALazerTagProjectile::SetShooter(ALazerTagCharacter* _shooter)
+{
+	shooter = _shooter;
 }

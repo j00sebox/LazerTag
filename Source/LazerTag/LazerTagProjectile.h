@@ -8,6 +8,7 @@
 
 class USphereComponent;
 class UProjectileMovementComponent;
+class ALazerTagCharacter;
 
 UCLASS(config=Game)
 class ALazerTagProjectile : public AActor
@@ -33,5 +34,13 @@ public:
 	USphereComponent* GetCollisionComp() const { return CollisionComp; }
 	/** Returns ProjectileMovement subobject **/
 	UProjectileMovementComponent* GetProjectileMovement() const { return ProjectileMovement; }
+
+	/* Sets the reference of who shot the projectile */
+	void SetShooter(ALazerTagCharacter* _shooter);
+
+private:
+
+	/* Keep a reference of who shot the projectile */
+	ALazerTagCharacter* shooter;
 };
 
