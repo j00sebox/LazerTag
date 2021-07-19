@@ -49,6 +49,7 @@ void ALazerTagProjectile::OnHit(UPrimitiveComponent* HitComp, AActor* OtherActor
 			{
 				if (shooter != nullptr)
 				{
+					shooter->HitPlayer();
 					shooter->UpdateScore(5);
 				}				
 			}

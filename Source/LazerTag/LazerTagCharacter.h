@@ -121,6 +121,10 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Gameplay)
 	USoundBase* FireSound;
 
+	/* sound to play when hit marker appears */
+	UPROPERTY(editAnywhere, blueprintReadWrite, category = Gameplay)
+	USoundBase* hitMarkerSound;
+
 	/** AnimMontage to play each time we fire */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Gameplay)
 	UAnimMontage* FireAnimation;
@@ -162,6 +166,13 @@ public:
 
 	UFUNCTION(blueprintImplementableEvent)
 	void CamTiltReverse();
+
+	UFUNCTION(reliable, client)
+	void HitPlayer();
+	void HitPlayer_Implementation();
+
+	UFUNCTION(blueprintImplementableEvent)
+	void ShowHitMarker();
 
 	UFUNCTION()
 	void BeginWallRun();
@@ -233,15 +244,9 @@ public:
 	UFUNCTION(blueprintCallable, blueprintAuthorityOnly, category = "Score")
 	void UpdateScore(int delta);
 
-	// set if this character has been hit
-	UPROPERTY(visibleAnywhere, blueprintReadOnly)
-	bool hitSelf;
-
 	/* Plays hit animation when player is hit with projectile*/
-	//UFUNCTION(reliable, server)
 	void OnHit();
-	//void OnHit_Implementation();
-
+	
 protected:
 
 	UPROPERTY(replicated, visibleAnywhere, blueprintReadOnly, category = "Score")

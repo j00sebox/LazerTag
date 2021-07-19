@@ -905,6 +905,17 @@ void ALazerTagCharacter::OnCamUnTilt_Implementation()
 	CamTiltReverse();
 }
 
+void ALazerTagCharacter::HitPlayer_Implementation()
+{
+	ShowHitMarker();
+
+	// try and play the sound if specified
+	if (hitMarkerSound != nullptr)
+	{
+		UGameplayStatics::PlaySoundAtLocation(this, hitMarkerSound, GetActorLocation());
+	}
+}
+
 void ALazerTagCharacter::BeginWallRun()
 {
 	Server_EnableWallRun();
