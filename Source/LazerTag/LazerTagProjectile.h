@@ -38,6 +38,9 @@ public:
 	/* Sets the reference of who shot the projectile */
 	void SetShooter(ALazerTagCharacter* _shooter);
 
+	UPROPERTY(editAnywhere, category = "Score")
+	int scorePerHit = 5;
+
 private:
 
 	/* Keep a reference of who shot the projectile */

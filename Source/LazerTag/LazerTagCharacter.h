@@ -124,6 +124,9 @@ public:
 	/** AnimMontage to play each time we fire */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Gameplay)
 	UAnimMontage* FireAnimation;
+	
+	UPROPERTY(editAnywhere, blueprintReadWrite, category = Gameplay)
+	UAnimMontage* hitAnimation;
 
 	/** Whether to use motion controller location for aiming. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Gameplay)
@@ -229,6 +232,15 @@ public:
 
 	UFUNCTION(blueprintCallable, blueprintAuthorityOnly, category = "Score")
 	void UpdateScore(int delta);
+
+	// set if this character has been hit
+	UPROPERTY(visibleAnywhere, blueprintReadOnly)
+	bool hitSelf;
+
+	/* Plays hit animation when player is hit with projectile*/
+	//UFUNCTION(reliable, server)
+	void OnHit();
+	//void OnHit_Implementation();
 
 protected:
 

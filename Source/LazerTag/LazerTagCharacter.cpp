@@ -598,6 +598,19 @@ void ALazerTagCharacter::OnFire_Implementation()
 	Client_OnFire();
 }
 
+void ALazerTagCharacter::OnHit()
+{
+	if (hitAnimation != nullptr)
+	{
+		// Get the animation object for the arms mesh
+		UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance();
+		if (AnimInstance != nullptr)
+		{
+			AnimInstance->Montage_Play(hitAnimation, 1.f);
+		}
+	}
+}
+
 void ALazerTagCharacter::Client_OnFire_Implementation()
 {
 	// try and play the sound if specified
@@ -617,8 +630,6 @@ void ALazerTagCharacter::Client_OnFire_Implementation()
 		}
 	}
 }
-
-
 
 void ALazerTagCharacter::OnResetVR()
 {

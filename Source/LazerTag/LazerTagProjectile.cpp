@@ -39,6 +39,8 @@ void ALazerTagProjectile::OnHit(UPrimitiveComponent* HitComp, AActor* OtherActor
 	{
 		if ( ALazerTagCharacter* const target = Cast<ALazerTagCharacter>(OtherActor) )
 		{
+			target->OnHit();
+
 			if (target->GetRemainingCharges() > 0)
 			{
 				target->UpdateCharges(-1);
