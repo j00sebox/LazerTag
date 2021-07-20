@@ -1,5 +1,5 @@
-#include "LazerTag.h"
 #include "SpawnVolume.h"
+#include "LazerTag.h"
 #include "Kismet/KismetMathLibrary.h"
 #include "Components/BoxComponent.h"
 #include "Pickup.h"

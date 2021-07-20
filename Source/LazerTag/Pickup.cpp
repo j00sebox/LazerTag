@@ -1,6 +1,5 @@
-
-#include "Net/UnrealNetwork.h"
 #include "Pickup.h"
+#include "Net/UnrealNetwork.h"
 
 APickup::APickup()
 {
