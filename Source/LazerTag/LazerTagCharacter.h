@@ -177,6 +177,12 @@ public:
 	UFUNCTION()
 	void BeginWallRun();
 
+	//UFUNCTION(blueprintImplementableEvent)
+	//void MeshTilt();
+
+	//UFUNCTION(blueprintImplementableEvent)
+	//void MeshTiltReverse();
+
 	UFUNCTION(reliable, server)
 	void Server_EnableWallRun();
 	void Server_EnableWallRun_Implementation();
@@ -299,12 +305,14 @@ protected:
 
 	float f_meshPitchRotationOffLeft = 35.f;
 	float f_meshPitchRotationOffRight = -35.f;
+
+	UPROPERTY(replicated, visibleAnywhere, blueprintReadOnly)
 	float f_meshPitchRotation;
 
 	/* Wall Running */
 	FVector m_wallRunDir;
 
-	UPROPERTY(replicated)
+	UPROPERTY(replicated, visibleAnywhere, blueprintReadOnly)
 	bool b_isWallRunning = false;
 
 	const int i_maxJumps = 2;

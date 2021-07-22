@@ -153,6 +153,7 @@ void ALazerTagCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& O
 	DOREPLIFETIME_CONDITION(ALazerTagCharacter, f_camRollRotation, COND_OwnerOnly);
 	DOREPLIFETIME(ALazerTagCharacter, CurrentSide);
 	DOREPLIFETIME(ALazerTagCharacter, i_score);
+	DOREPLIFETIME(ALazerTagCharacter, f_meshPitchRotation);
 }
 
 void ALazerTagCharacter::BeginPlay()
@@ -947,6 +948,8 @@ void ALazerTagCharacter::Server_EnableWallRun_Implementation()
 	m_characterMovement->SetPlaneConstraintNormal(FVector(0, 0, 1.f));
 
 	b_isWallRunning = true;
+
+	//MeshTilt();
 }
 
 void ALazerTagCharacter::Server_UpdateVelocity_Implementation(FVector dir)
@@ -959,6 +962,7 @@ void ALazerTagCharacter::EndWallRun()
 	Server_DisableWallRun();
 
 	CamTiltReverse();
+	
 	m_wallRunTimeline->Stop();
 }
 
@@ -971,12 +975,14 @@ void ALazerTagCharacter::Server_DisableWallRun_Implementation()
 	m_characterMovement->SetPlaneConstraintNormal(FVector(0, 0, 0));
 
 	b_isWallRunning = false;
+
+	//MeshTiltReverse();
 }
 
 void ALazerTagCharacter::SetMaxWalkSpeed()
 {
 
-	if (GetLocalRole() == ROLE_Authority)
+	if (__SERVER__)
 	{
 		switch (CurrentMoveState)
 		{
