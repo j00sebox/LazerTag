@@ -152,7 +152,6 @@ void ALazerTagCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& O
 	DOREPLIFETIME_CONDITION(ALazerTagCharacter, f_camStartZ, COND_InitialOnly);
 	DOREPLIFETIME_CONDITION(ALazerTagCharacter, f_camRollRotation, COND_OwnerOnly);
 	DOREPLIFETIME(ALazerTagCharacter, CurrentSide);
-	DOREPLIFETIME(ALazerTagCharacter, i_score);
 	DOREPLIFETIME(ALazerTagCharacter, f_meshPitchRotation);
 }
 
@@ -368,19 +367,6 @@ void ALazerTagCharacter::UpdateCharges(int delta)
 			i_shieldCharges += delta;
 		}
 		
-	}
-}
-
-int ALazerTagCharacter::GetCurrentScore() const
-{
-	return i_score;
-}
-
-void ALazerTagCharacter::UpdateScore(int delta)
-{
-	if (__SERVER__)
-	{
-		i_score += delta;
 	}
 }
 

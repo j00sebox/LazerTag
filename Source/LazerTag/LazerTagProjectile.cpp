@@ -4,6 +4,7 @@
 #include "GameFramework/ProjectileMovementComponent.h"
 #include "Components/SphereComponent.h"
 #include "LazerTagCharacter.h"
+#include "PState.h"
 
 ALazerTagProjectile::ALazerTagProjectile() 
 {
@@ -50,7 +51,10 @@ void ALazerTagProjectile::OnHit(UPrimitiveComponent* HitComp, AActor* OtherActor
 				if (shooter != nullptr)
 				{
 					shooter->HitPlayer();
-					shooter->UpdateScore(5);
+					if (APState* const pState = Cast<APState>(shooter->GetPlayerState()) )
+					{
+						pState->UpdateScore(5);
+					}
 				}				
 			}
 		}

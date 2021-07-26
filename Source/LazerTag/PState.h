@@ -3,32 +3,42 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "Components/ActorComponent.h"
+#include "GameFramework/PlayerState.h"
 #include "PState.generated.h"
 
-
-UCLASS( ClassGroup=(Custom), meta=(BlueprintSpawnableComponent) )
-class LAZERTAG_API UPState : public UActorComponent
+/**
+ * 
+ */
+UCLASS()
+class LAZERTAG_API APState : public APlayerState
 {
 	GENERATED_BODY()
 
-public:	
-	// Sets default values for this component's properties
-	UPState();
+public:
+
+	APState();
+
+	// required network setup
+	void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
+
+	UFUNCTION(blueprintPure, category = "Score")
+	int GetCurrentScore() const;
+
+	UFUNCTION(blueprintPure, category = "Name")
+	FString GetName() const;
+
+	UFUNCTION(blueprintCallable, blueprintAuthorityOnly, category = "Score")
+	void UpdateScore(int delta);
+
+	UFUNCTION(blueprintImplementableEvent)
+	void UpdateLeaderBoardPos();
 
 protected:
-	// Called when the game starts
-	virtual void BeginPlay() override;
 
-public:	
-	// Called every frame
-	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
+	UPROPERTY(replicated, visibleAnywhere, blueprintReadWrite)
+	FString playerName;
 
-	FString getName() { return _name; }
-
-private:
-
-	FString _name;
-
-		
+	UPROPERTY(replicated, visibleAnywhere, blueprintReadOnly)
+	int playerScore;
+	
 };

@@ -85,7 +85,7 @@ public:
 	ALazerTagCharacter();
 
 	// required network setup
-	void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& outLifetimeProps) const override;
+	void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
 protected:
 	virtual void BeginPlay();
@@ -244,19 +244,10 @@ public:
 	UFUNCTION(blueprintCallable, blueprintAuthorityOnly, category = "Shield")
 	void UpdateCharges(int delta);
 
-	UFUNCTION(blueprintPure, category = "Score")
-	int GetCurrentScore() const;
-
-	UFUNCTION(blueprintCallable, blueprintAuthorityOnly, category = "Score")
-	void UpdateScore(int delta);
-
 	/* Plays hit animation when player is hit with projectile*/
 	void OnHit();
 	
 protected:
-
-	UPROPERTY(replicated, visibleAnywhere, blueprintReadOnly, category = "Score")
-	int i_score = 0;
 
 	// initial shield charges
 	UPROPERTY(replicated, editAnywhere, blueprintReadWrite, category = "Shield")
