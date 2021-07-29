@@ -88,10 +88,15 @@ ALazerTagCharacter::ALazerTagCharacter()
 	GetMesh()->SetOwnerNoSee(true);
 	_standCollisionParams.AddIgnoredComponent(GetMesh());
 
+	// Gun that can be seen in multiplayer
+	MP_Gun = CreateAbstractDefaultSubobject<USkeletalMeshComponent>(TEXT("MP_Gun"));
+	MP_Gun->SetOwnerNoSee(true);
+	MP_Gun->SetupAttachment(RootComponent);
+
 #if __VR__ == 0
 	// Create a gun mesh component
 	FP_Gun = CreateDefaultSubobject<USkeletalMeshComponent>(TEXT("FP_Gun"));
-	FP_Gun->SetOnlyOwnerSee(false);			// otherwise won't be visible in the multiplayer
+	FP_Gun->SetOnlyOwnerSee(true);			// otherwise won't be visible in the multiplayer
 	FP_Gun->bCastDynamicShadow = false;
 	FP_Gun->CastShadow = false;
 	FP_Gun->SetupAttachment(RootComponent);
@@ -194,6 +199,7 @@ void ALazerTagCharacter::BeginPlay()
 
 	//Attach gun mesh component to Skeleton, doing it here because the skeleton is not yet created in the constructor
 	FP_Gun->AttachToComponent(Mesh1P, FAttachmentTransformRules(EAttachmentRule::SnapToTarget, true), TEXT("GripPoint"));
+	MP_Gun->AttachToComponent(GetMesh(), FAttachmentTransformRules(EAttachmentRule::SnapToTarget, true), TEXT("gunSocket"));
 
 	// Show or hide the two versions of the gun based on whether or not we're using motion controllers.
 	if (bUsingMotionControllers)
