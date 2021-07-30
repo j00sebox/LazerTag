@@ -911,8 +911,6 @@ void ALazerTagCharacter::HitPlayer_Implementation()
 
 void ALazerTagCharacter::BeginWallRun()
 {
-	Server_EnableWallRun();
-
 	if (CurrentSide == EWallSide::LEFT)
 	{
 		f_camRollRotation = f_camRollRotationOffLeft;
@@ -924,9 +922,13 @@ void ALazerTagCharacter::BeginWallRun()
 		f_meshPitchRotation = f_meshPitchRotationOffRight;
 	}
 
+	Server_EnableWallRun();
+
 	SetMovementState(EMovementStates::SPRINTING);
 
 	CamTiltStart();
+
+	MeshTilt();
 
 	m_wallRunTimeline->Play();
 }
@@ -940,8 +942,6 @@ void ALazerTagCharacter::Server_EnableWallRun_Implementation()
 	m_characterMovement->SetPlaneConstraintNormal(FVector(0, 0, 1.f));
 
 	b_isWallRunning = true;
-
-	//MeshTilt();
 }
 
 void ALazerTagCharacter::Server_UpdateVelocity_Implementation(FVector dir)
@@ -954,6 +954,8 @@ void ALazerTagCharacter::EndWallRun()
 	Server_DisableWallRun();
 
 	CamTiltReverse();
+
+	MeshTiltReverse();
 	
 	m_wallRunTimeline->Stop();
 }
@@ -968,7 +970,6 @@ void ALazerTagCharacter::Server_DisableWallRun_Implementation()
 
 	b_isWallRunning = false;
 
-	//MeshTiltReverse();
 }
 
 void ALazerTagCharacter::SetMaxWalkSpeed()

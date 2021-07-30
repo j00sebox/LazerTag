@@ -181,11 +181,11 @@ public:
 	UFUNCTION()
 	void BeginWallRun();
 
-	//UFUNCTION(blueprintImplementableEvent)
-	//void MeshTilt();
+	UFUNCTION(blueprintImplementableEvent)
+	void MeshTilt();
 
-	//UFUNCTION(blueprintImplementableEvent)
-	//void MeshTiltReverse();
+	UFUNCTION(blueprintImplementableEvent)
+	void MeshTiltReverse();
 
 	UFUNCTION(reliable, server)
 	void Server_EnableWallRun();
