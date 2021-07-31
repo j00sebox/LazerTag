@@ -468,12 +468,14 @@ FVector ALazerTagCharacter::FindWallRunDir(FVector wallNormal)
 		return FVector::CrossProduct(wallNormal, FVector::UpVector);
 }
 
+// this find the direction the player should jump off the wall depending on the slope
 FVector ALazerTagCharacter::FindLaunchVelocity()
 {
 	FVector launchVelocity;
 
 	if (OnWall())
 	{
+		// the side the wall is on is used to determine which vector should be crossed
 		if (CurrentSide == EWallSide::LEFT)
 		{
 			launchVelocity = FVector::CrossProduct(m_wallRunDir, -FVector::UpVector);
@@ -483,12 +485,15 @@ FVector ALazerTagCharacter::FindLaunchVelocity()
 			launchVelocity = FVector::CrossProduct(m_wallRunDir, FVector::UpVector);
 		}
 
+		// adds a little upwards motion to the juump
 		launchVelocity += FVector::UpVector;
 
+		// final direction to jump
 		launchVelocity.Normalize();
 	}
 	else
 	{
+		// if the player is not on a wall then it can just be up
 		launchVelocity = FVector::UpVector;
 	}
 
@@ -497,10 +502,12 @@ FVector ALazerTagCharacter::FindLaunchVelocity()
 	return launchVelocity;
 }
 
+// this checks if the player is holding down the correct keys in order to wall run
 bool ALazerTagCharacter::CanWallRun()
 {
   	bool correctKey = false;
 
+	// needs to be going forwards can holding either the left or right key depending what side the wall is on
 	if (f_sideMovement > 0.1f && CurrentSide == EWallSide::RIGHT)
 	{
 		correctKey = true;
@@ -591,6 +598,7 @@ void ALazerTagCharacter::OnFire_Implementation()
 	Client_OnFire();
 }
 
+// plays the hurt animation
 void ALazerTagCharacter::OnHit()
 {
 	if (hitAnimation != nullptr)
@@ -684,6 +692,7 @@ void ALazerTagCharacter::Jump()
 	Server_Jump();
 }
 
+// server is repsonsible for making sure the jump is decremented properly
 void ALazerTagCharacter::Server_Jump_Implementation()
 {
 	if(__SERVER__)
@@ -789,7 +798,7 @@ void ALazerTagCharacter::Server_SetMovementState_Implementation(EMovementStates 
 			case EMovementStates::WALKING:
 			{
 
-				if (newState == EMovementStates::SPRINTING && CanSprint())
+				if (newState == EMovementStates::SPRINTING && (CanSprint() || b_isWallRunning))
 				{
 					CurrentMoveState = newState;
 				}
@@ -809,8 +818,10 @@ void ALazerTagCharacter::Server_SetMovementState_Implementation(EMovementStates 
 					BeginCrouch();
 					BeginSlide();
 				}
-				else if (newState == EMovementStates::WALKING)
+				else if (newState == EMovementStates::WALKING && !b_isWallRunning)
+				{
 					CurrentMoveState = newState;
+				}
 				break;
 			}
 			case EMovementStates::CROUCHING:
@@ -873,8 +884,6 @@ void ALazerTagCharacter::BeginSlide()
 	OnCamTilt();
 
 	m_slideTimeline->Play();
-	
-	//m_camTiltTimeline->Play();
 }
 
 void ALazerTagCharacter::EndSlide()
@@ -930,6 +939,8 @@ void ALazerTagCharacter::BeginWallRun()
 
 	MeshTilt();
 
+	ResetJump();
+
 	m_wallRunTimeline->Play();
 }
 
@@ -956,6 +967,11 @@ void ALazerTagCharacter::EndWallRun()
 	CamTiltReverse();
 
 	MeshTiltReverse();
+
+	if(!b_sprintKeyDown)
+	{
+		SetMovementState(EMovementStates::WALKING);
+	}
 	
 	m_wallRunTimeline->Stop();
 }
@@ -1022,7 +1038,7 @@ bool ALazerTagCharacter::CanSprint()
 	if (!b_sprintKeyDown)
 		return false;
 	
-	return  /* !m_characterMovement->IsFalling()  && **/ CanStand();
+	return  !m_characterMovement->IsFalling()  &&  CanStand();
 
 }
 
