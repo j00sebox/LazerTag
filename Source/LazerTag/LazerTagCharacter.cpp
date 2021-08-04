@@ -551,7 +551,7 @@ void ALazerTagCharacter::SetupPlayerInputComponent(class UInputComponent* Player
 
 	PlayerInputComponent->BindAction("Sprint", IE_Pressed, this, &ALazerTagCharacter::Sprint);
 	PlayerInputComponent->BindAction("Sprint", IE_Released, this, &ALazerTagCharacter::StopSprint);
-	PlayerInputComponent->BindAction("Crouch", IE_Pressed, this, &ALazerTagCharacter::Crouch);
+	PlayerInputComponent->BindAction("Crouch", IE_Pressed, this, &ALazerTagCharacter::CCrouch);
 	PlayerInputComponent->BindAction("Crouch", IE_Released, this, &ALazerTagCharacter::Stand);
 
 	// input to collect pickups
@@ -714,7 +714,7 @@ void ALazerTagCharacter::Landed(const FHitResult& Hit)
 	ResetJump();
 }
 
-void ALazerTagCharacter::Crouch()
+void ALazerTagCharacter::CCrouch()
 {
 	Server_Crouch();
 

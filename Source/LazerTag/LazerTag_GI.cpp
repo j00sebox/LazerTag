@@ -15,7 +15,7 @@ int ULazerTag_GI::GetTimeLimit() const
 
 void ULazerTag_GI::SetScoreLimit(int limit)
 {
-	if (limit != NULL && limit < 1000)
+	if (limit != 0 && limit < 10000)
 	{
 		insScoreLimit = limit;
 	}

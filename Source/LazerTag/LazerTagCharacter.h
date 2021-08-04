@@ -387,7 +387,7 @@ protected:
 	void Landed(const FHitResult& Hit) override;
 
 	/* Binded to a key and performs the crouching adjustments needed. */
-	void Crouch();
+	void CCrouch();
 
 	UFUNCTION(reliable, server)
 	void Server_Crouch();

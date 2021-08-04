@@ -9,10 +9,11 @@
 
 APState::APState()
 {
-	if (USaveName* file = Cast<USaveName>(UGameplayStatics::LoadGameFromSlot(TEXT("Save0"), 0)))
+	bReplicates = true;
+	/*if (USaveName* file = Cast<USaveName>(UGameplayStatics::LoadGameFromSlot(TEXT("Save0"), 0)))
 	{
 		playerName = file->savedName;
-	}
+	}*/
 }
 
 void APState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
