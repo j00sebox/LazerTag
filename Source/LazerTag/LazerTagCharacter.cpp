@@ -988,6 +988,45 @@ void ALazerTagCharacter::Server_DisableWallRun_Implementation()
 
 }
 
+// test to see if another player is in line of sight
+void ALazerTagCharacter::PlayerNameVisible_Implementation()
+{
+	FHitResult hit;
+
+	FRotator rot = GetControlRotation();
+
+	FVector start = FP_MuzzleLocation->GetComponentLocation();
+	FVector end = start + (FP_MuzzleLocation->GetForwardVector() * 5000);
+
+	if (GetWorld()->LineTraceSingleByChannel(hit, start, end, ECC_WorldStatic, _standCollisionParams) && hit.Actor != this)
+	{
+		// if there is another player then their name can be displayed above their head
+		if (ALazerTagCharacter* target = Cast< ALazerTagCharacter>(hit.Actor))
+		{
+			if (prevTarget != nullptr)
+			{
+				if (target != prevTarget)
+				{
+					RemoveName(prevTarget);
+				}
+			}
+
+			DisplayName(target);
+
+			// have to keep track of the previous target to know whne tostop showing the name
+			prevTarget = target;
+		}
+		else if (prevTarget != nullptr)
+		{
+			RemoveName(prevTarget);
+		}
+	}
+	else if (prevTarget != nullptr)
+	{
+		RemoveName(prevTarget);
+	}
+}
+
 void ALazerTagCharacter::SetMaxWalkSpeed()
 {
 

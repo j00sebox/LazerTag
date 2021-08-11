@@ -250,6 +250,19 @@ public:
 
 	/* Plays hit animation when player is hit with projectile*/
 	void OnHit();
+
+	UFUNCTION(blueprintNativeEvent, blueprintCallable)
+	void PlayerNameVisible();
+	virtual void PlayerNameVisible_Implementation();
+
+	UFUNCTION(blueprintImplementableEvent)
+	void DisplayName(ALazerTagCharacter* ac);
+
+	UFUNCTION(blueprintImplementableEvent)
+	void RemoveName(ALazerTagCharacter* ac);
+
+	UFUNCTION(blueprintImplementableEvent)
+	void testLine(FVector start, FVector end);
 	
 protected:
 
@@ -492,7 +505,6 @@ protected:
 	UFUNCTION()
 	bool CanWallRun();
 	
-protected:
 	// APawn interface
 	virtual void SetupPlayerInputComponent(UInputComponent* InputComponent) override;
 	// End of APawn interface
@@ -504,6 +516,10 @@ public:
 	FORCEINLINE UCameraComponent* GetFirstPersonCameraComponent() const { return FirstPersonCameraComponent; }
 	/** Returns the sphere that determines if the player can pickup an object */
 	FORCEINLINE USphereComponent* GetPickupSphere() const { return pickupSphere; }
+
+private:
+
+	ALazerTagCharacter* prevTarget;
 
 };
 
