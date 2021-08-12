@@ -46,8 +46,8 @@ ALazerTagCharacter::ALazerTagCharacter()
 	GetCapsuleComponent()->InitCapsuleSize(55.f, f_standingCapsuleHalfHeight);
 
 	// need event for wall running
-	OnCapsuleHit.BindUFunction(this, FName("CapsuleHit"));
-	GetCapsuleComponent()->OnComponentHit.Add(OnCapsuleHit);
+	/*OnCapsuleHit.BindUFunction(this, FName("CapsuleHit"));
+	GetCapsuleComponent()->OnComponentHit.Add(OnCapsuleHit);*/
 
 	// set our turn rates for input
 	BaseTurnRate = 45.f;
@@ -399,13 +399,13 @@ bool ALazerTagCharacter::UseJump()
 		
 }
 
-void ALazerTagCharacter::CapsuleHit(const FHitResult& Hit)
+void ALazerTagCharacter::CapsuleHit(FVector impactNormal)
 {
 	if (!OnWall())
 	{
-		if (m_characterMovement->IsFalling() && WallRunnable(Hit.ImpactNormal))
+		if (m_characterMovement->IsFalling() && WallRunnable(impactNormal))
 		{
- 			m_wallRunDir = FindWallRunDir(-Hit.ImpactNormal);
+ 			m_wallRunDir = FindWallRunDir(impactNormal);
 
    			if (CanWallRun())
 			{
@@ -423,8 +423,8 @@ void ALazerTagCharacter::ResetJump()
 bool ALazerTagCharacter::WallRunnable(FVector surfaceNormal)
 {
 
-	if(surfaceNormal.Z < 0)
-		return false;
+	/*if(surfaceNormal.Z < 0)
+		return false;*/
 
 	surfaceNormal.Normalize();
 
@@ -448,8 +448,11 @@ FVector ALazerTagCharacter::FindWallRunDir(FVector wallNormal)
 {
 
 	wallNormal.Normalize();
+	
 	FVector2D normal = FVector2D(wallNormal);
 	FVector2D right = FVector2D(GetActorRightVector());
+
+	FVector test = GetActorLocation() + wallNormal;
 
 	float res = FVector2D::DotProduct(normal, right);
 
@@ -463,9 +466,9 @@ FVector ALazerTagCharacter::FindWallRunDir(FVector wallNormal)
 	}
 
 	if(CurrentSide == EWallSide::RIGHT)
-		return FVector::CrossProduct(wallNormal, -FVector::UpVector);
+		return FVector::CrossProduct(FVector::UpVector, wallNormal);
 	else
-		return FVector::CrossProduct(wallNormal, FVector::UpVector);
+		return FVector::CrossProduct(-FVector::UpVector, wallNormal);
 }
 
 // this find the direction the player should jump off the wall depending on the slope
@@ -508,7 +511,7 @@ bool ALazerTagCharacter::CanWallRun()
   	bool correctKey = false;
 
 	// needs to be going forwards can holding either the left or right key depending what side the wall is on
-	if (f_sideMovement > 0.1f && CurrentSide == EWallSide::RIGHT)
+  	if (f_sideMovement > 0.1f && CurrentSide == EWallSide::RIGHT)
 	{
 		correctKey = true;
 	}

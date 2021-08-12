@@ -203,7 +203,7 @@ public:
 	void Server_DisableWallRun_Implementation();
 
 	// delegate invoked by the OnComponentHit event
-	FScriptDelegate OnCapsuleHit;
+	//FScriptDelegate OnCapsuleHit;
 
 	// delegate that is used to tilt the camera
 	FOnTimelineFloat CamInterp;
@@ -215,8 +215,8 @@ public:
 	FOnTimelineFloat WallRunInterp;
 	
 	/* event triggers everytime player comes into contact with a surface*/
-	UFUNCTION()
-	void CapsuleHit(const FHitResult& Hit);
+	UFUNCTION(blueprintCallable, category = "Capsule")
+	void CapsuleHit(FVector impactNormal);
 
 	/* event that gradually tilts camera while wall running or sliding */
 	UFUNCTION()
@@ -262,7 +262,7 @@ public:
 	void RemoveName(ALazerTagCharacter* ac);
 
 	UFUNCTION(blueprintImplementableEvent)
-	void testLine(FVector start, FVector end);
+	void testLine(FVector start, FVector end, FColor colour);
 	
 protected:
 
