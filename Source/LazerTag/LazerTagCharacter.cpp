@@ -45,10 +45,6 @@ ALazerTagCharacter::ALazerTagCharacter()
 	// Set size for collision capsule
 	GetCapsuleComponent()->InitCapsuleSize(55.f, f_standingCapsuleHalfHeight);
 
-	// need event for wall running
-	/*OnCapsuleHit.BindUFunction(this, FName("CapsuleHit"));
-	GetCapsuleComponent()->OnComponentHit.Add(OnCapsuleHit);*/
-
 	// set our turn rates for input
 	BaseTurnRate = 45.f;
 	BaseLookUpRate = 45.f;
@@ -849,7 +845,15 @@ void ALazerTagCharacter::Server_SetMovementState_Implementation(EMovementStates 
 					if (CanStand())
 					{
 						EndCrouch();
-						CurrentMoveState = newState;
+						if (!b_sprintKeyDown)
+						{
+							CurrentMoveState = newState;
+						}
+						else
+						{
+							CurrentMoveState = EMovementStates::SPRINTING;
+						}
+						
 					}
 					else
 						CurrentMoveState = EMovementStates::CROUCHING;

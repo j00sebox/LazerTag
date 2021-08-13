@@ -202,9 +202,6 @@ public:
 	void Server_DisableWallRun();
 	void Server_DisableWallRun_Implementation();
 
-	// delegate invoked by the OnComponentHit event
-	//FScriptDelegate OnCapsuleHit;
-
 	// delegate that is used to tilt the camera
 	FOnTimelineFloat CamInterp;
 

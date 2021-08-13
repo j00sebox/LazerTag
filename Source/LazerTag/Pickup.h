@@ -38,7 +38,7 @@ public:
 	virtual void Server_PickedUpBy(APawn* Pawn);
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Pickup")
-	float f_lifeSpan = .5f;
+	float f_lifeSpan = .2f;
 
 protected:
 	
