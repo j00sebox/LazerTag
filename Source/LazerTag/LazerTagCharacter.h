@@ -253,7 +253,7 @@ public:
 	virtual void PlayerNameVisible_Implementation();
 
 	UFUNCTION(blueprintImplementableEvent)
-	void DisplayName(ALazerTagCharacter* ac);
+	void DisplayName(ALazerTagCharacter* ac, const FString& str);
 
 	UFUNCTION(blueprintImplementableEvent)
 	void RemoveName(ALazerTagCharacter* ac);

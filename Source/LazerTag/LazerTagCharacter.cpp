@@ -18,6 +18,7 @@
 #include "Net/UnrealNetwork.h"
 #include "Pickup.h"
 #include "Shield.h"
+#include "PState.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogFPChar, Warning, All);
 
@@ -1018,7 +1019,12 @@ void ALazerTagCharacter::PlayerNameVisible_Implementation()
 				}
 			}
 
-			DisplayName(target);
+			if ( APState* pstate = Cast<APState>(target->GetPlayerState()) )
+			{
+				DisplayName(target, pstate->GetName());
+			}
+
+			
 
 			// have to keep track of the previous target to know whne tostop showing the name
 			prevTarget = target;
