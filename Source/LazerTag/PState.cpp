@@ -43,3 +43,8 @@ void APState::UpdateScore(int delta)
 		UpdateLeaderBoardPos();
 	}
 }
+
+void APState::SetNameFromBlueprint(const FString& name)
+{
+	SetPlayerName(name);
+}

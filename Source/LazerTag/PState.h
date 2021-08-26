@@ -33,6 +33,12 @@ public:
 	UFUNCTION(blueprintImplementableEvent)
 	void UpdateLeaderBoardPos();
 
+	UFUNCTION(blueprintCallable)
+	void SetNameFromBlueprint(const FString& name);
+
+
+	//void CopyProperties(APlayerState* PlayerState)
+
 protected:
 
 	UPROPERTY(replicated, visibleAnywhere, blueprintReadWrite)
