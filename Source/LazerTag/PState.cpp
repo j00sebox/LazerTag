@@ -48,3 +48,4 @@ void APState::SetNameFromBlueprint(const FString& name)
 {
 	SetPlayerName(name);
 }
+

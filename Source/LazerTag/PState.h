@@ -41,10 +41,12 @@ public:
 
 protected:
 
+
 	UPROPERTY(replicated, visibleAnywhere, blueprintReadWrite)
 	FString playerName;
 
 	UPROPERTY(replicated, visibleAnywhere, blueprintReadOnly)
 	int playerScore;
+
 	
 };

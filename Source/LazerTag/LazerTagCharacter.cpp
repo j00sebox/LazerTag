@@ -1019,14 +1019,16 @@ void ALazerTagCharacter::PlayerNameVisible_Implementation()
 				}
 			}
 
-			if ( APState* pstate = Cast<APState>(target->GetPlayerState()) )
+			DisplayName(target, target->GetPlayerState()->GetPlayerName());
+
+			/*if ( APState* pstate = Cast<APState>(target->GetPlayerState()) )
 			{
 				DisplayName(target, pstate->GetName());
-			}
+			}*/
 
 			
 
-			// have to keep track of the previous target to know whne tostop showing the name
+			// have to keep track of the previous target to know when to stop showing the name
 			prevTarget = target;
 		}
 		else if (prevTarget != nullptr)
