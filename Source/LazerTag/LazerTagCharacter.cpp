@@ -1019,7 +1019,16 @@ void ALazerTagCharacter::PlayerNameVisible_Implementation()
 				}
 			}
 
-			DisplayName(target, target->GetPlayerState()->GetPlayerName());
+
+			if (target->GetPlayerState() != nullptr)
+			{
+				DisplayName(target, target->GetPlayerState()->GetPlayerName());
+			}
+			else
+			{
+				DisplayName(target, TEXT("Sal T."));
+			}
+			
 
 			/*if ( APState* pstate = Cast<APState>(target->GetPlayerState()) )
 			{
